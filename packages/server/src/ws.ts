@@ -59,6 +59,7 @@ async function callTool(engine: Engine, name: ToolName, params: unknown): Promis
     case 'history': return engine.history(args as Parameters<Engine['history']>[0]);
     case 'layout': return engine.layout(args as Parameters<Engine['layout']>[0]);
     case 'render': return callRender(engine, params); // the /ws render returns SVG; dispatched before this
+    case 'export': return engine.export(args as Parameters<Engine['export']>[0]);
     case 'help': return engine.help(args as Parameters<Engine['help']>[0]);
   }
 }

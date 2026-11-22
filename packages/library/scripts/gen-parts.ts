@@ -85,6 +85,7 @@ const VIEWS: Record<string, [sch: string, bb: string]> = {
   battery: ['battery', 'battery'], dc_supply: ['vsource', 'supply'], switch_spst: ['switch', 'slide_switch'], button: ['button', 'button'],
   buzzer: ['buzzer', 'buzzer'], logic_probe: ['probe', 'probe'], vcc_symbol: ['vcc', 'none'], gnd_symbol: ['gnd', 'none'],
   npn: ['npn', 'to92'], pnp: ['pnp', 'to92'], nmos: ['nmos', 'to92'], arduino_uno: ['board', 'arduino_uno'],
+  header_1x02: ['ic', 'none'], header_1x03: ['ic', 'none'],
   breadboard_half: ['none', 'breadboard'], breadboard_full: ['none', 'breadboard'],
 };
 
@@ -485,6 +486,28 @@ function buildPartList(): PartDef[] {
       pins: [pin('1', 'IN', 'input')],
       sim: [{ kind: 'logic', ref: 'probe' }],
       keywords: ['probe', 'test', 'logic', 'digital', 'monitor'],
+    },
+
+    // connector
+    {
+      id: 'header_1x02',
+      name: 'Pin Header 1x2',
+      summary: '2-pin 2.54mm single-row header',
+      category: 'connector',
+      refPrefix: 'J',
+      pins: [pin('1', '1', 'passive'), pin('2', '2', 'passive')],
+      footprints: ['Header_1x02_P2.54mm'],
+      keywords: ['header', 'connector', 'pin', '2.54mm', '1x2', 'jumper'],
+    },
+    {
+      id: 'header_1x03',
+      name: 'Pin Header 1x3',
+      summary: '3-pin 2.54mm single-row header',
+      category: 'connector',
+      refPrefix: 'J',
+      pins: [pin('1', '1', 'passive'), pin('2', '2', 'passive'), pin('3', '3', 'passive')],
+      footprints: ['Header_1x03_P2.54mm'],
+      keywords: ['header', 'connector', 'pin', '2.54mm', '1x3', 'jumper'],
     },
 
     // board

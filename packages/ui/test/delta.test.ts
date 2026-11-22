@@ -17,6 +17,7 @@ const emptyDelta: Delta = {
   netsRemoved: [],
   netsChanged: [],
   netsRenamed: [],
+  pcbNets: [],
 };
 
 describe('deltaToHighlight', () => {
@@ -29,6 +30,7 @@ describe('deltaToHighlight', () => {
       netsAdded: ['LA'],
       netsChanged: ['VCC', 'LA'],
       netsRenamed: [['N1', 'IN']],
+      pcbNets: ['GND', 'LA'],
     };
     expect(deltaToHighlight(delta)).toEqual([
       'R2',
@@ -37,6 +39,7 @@ describe('deltaToHighlight', () => {
       'net:LA',
       'net:VCC',
       'net:IN',
+      'net:GND',
     ]);
   });
 });

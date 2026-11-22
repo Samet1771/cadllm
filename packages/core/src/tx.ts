@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
 import { CadError } from './errors.ts';
 import { Query, pinKey } from './query.ts';
-import type { Circuit, Component, Net, PartDef, PartResolver } from './types.ts';
+import type { Circuit, Component, Net, PartDef, PartResolver, PcbData, PcbLayer, PcbRules, PcbTrack, PcbVia } from './types.ts';
 import { AUTO_NET_RE, NET_RE, REF_RE, closest, parseSI } from './util.ts';
+
+export const DEFAULT_PCB_RULES: PcbRules = { clearance: 0.2, track: 0.25, via: 0.6, drill: 0.3 };
 
 export interface ComponentSpec {
   ref?: string;
@@ -51,6 +53,10 @@ export class Tx extends Query {
 
   private validateProps(part: PartDef, props: Record<string, string | null>, ref: string): void {
     for (const [k, v] of Object.entries(props)) {
+      if (k === 'footprint' && !part.props?.[k] && part.footprints?.length) {
+        if (v !== null && v.trim() === '') throw new CadError('invalid', `${ref}: footprint cannot be empty`);
+        continue;
+      }
       const def = part.props?.[k];
       if (!def) {
         const names = Object.keys(part.props ?? {});
@@ -176,6 +182,10 @@ export class Tx extends Query {
     drop.pins = [];
     delete this.circuit.nets[drop.id];
     this.byNetName.delete(drop.name.toUpperCase());
+    if (this.circuit.pcb) {
+      for (const t of this.circuit.pcb.tracks) if (t.net === drop.id) t.net = keep.id;
+      for (const v of this.circuit.pcb.vias) if (v.net === drop.id) v.net = keep.id;
+    }
   }
 
   /** Disconnect pins from the named net (each must be on it). */
@@ -193,6 +203,7 @@ export class Tx extends Query {
     for (const k of [...net.pins]) this.pinNet.delete(k);
     delete this.circuit.nets[net.id];
     this.byNetName.delete(net.name.toUpperCase());
+    this.dropPcbNet(net.id);
   }
 
   /** Rename a net; if newName exists the nets are merged into it (deliberate merge). */
@@ -212,6 +223,79 @@ export class Tx extends Query {
 
   setMeta(key: string, value: string | null): void {
     if (value === null) delete this.circuit.meta[key]; else this.circuit.meta[key] = value;
+  }
+
+  ensurePcb(): PcbData {
+    this.circuit.pcb ??= { tracks: [], vias: [] };
+    return this.circuit.pcb;
+  }
+
+  setBoard(outline: [number, number][]): void {
+    if (outline.length < 3) throw new CadError('invalid', 'board outline needs at least 3 points');
+    for (const [x, y] of outline) {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) throw new CadError('invalid', 'board outline coordinates must be finite numbers');
+    }
+    this.ensurePcb().board = { outline: outline.map(([x, y]) => [x, y]) };
+  }
+
+  setPcbRules(rules: Partial<PcbRules>): void {
+    const next: PcbRules = { ...DEFAULT_PCB_RULES, ...this.circuit.pcb?.rules };
+    for (const k of ['clearance', 'track', 'via', 'drill'] as const) {
+      const v = rules[k];
+      if (v === undefined) continue;
+      if (!Number.isFinite(v) || v <= 0) throw new CadError('invalid', `pcb rule ${k} must be a positive number`);
+      next[k] = v;
+    }
+    this.ensurePcb().rules = next;
+  }
+
+  addTrack(spec: { net: string; layer: PcbLayer; width?: number; points: [number, number][] }): PcbTrack {
+    const net = this.requireNet(spec.net);
+    if (spec.layer !== 'F' && spec.layer !== 'B') throw new CadError('invalid', `invalid PCB layer "${String(spec.layer)}"`, 'use F or B');
+    const width = spec.width ?? this.circuit.pcb?.rules?.track ?? DEFAULT_PCB_RULES.track;
+    if (!Number.isFinite(width) || width <= 0) throw new CadError('invalid', 'track width must be a positive number');
+    if (spec.points.length < 2) throw new CadError('invalid', 'track needs at least 2 points');
+    for (const [x, y] of spec.points) {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) throw new CadError('invalid', 'track coordinates must be finite numbers');
+    }
+    const track: PcbTrack = { net: net.id, layer: spec.layer, width, points: spec.points.map(([x, y]) => [x, y]) };
+    this.ensurePcb().tracks.push(track);
+    return track;
+  }
+
+  addVia(spec: { net: string; at: [number, number]; size?: number; drill?: number }): PcbVia {
+    const net = this.requireNet(spec.net);
+    const rules = this.circuit.pcb?.rules ?? DEFAULT_PCB_RULES;
+    const size = spec.size ?? rules.via;
+    const drill = spec.drill ?? rules.drill;
+    if (!Number.isFinite(size) || size <= 0) throw new CadError('invalid', 'via size must be a positive number');
+    if (!Number.isFinite(drill) || drill <= 0) throw new CadError('invalid', 'via drill must be a positive number');
+    if (!Number.isFinite(spec.at[0]) || !Number.isFinite(spec.at[1])) throw new CadError('invalid', 'via coordinates must be finite numbers');
+    const via: PcbVia = { net: net.id, at: [spec.at[0], spec.at[1]], size, drill };
+    this.ensurePcb().vias.push(via);
+    return via;
+  }
+
+  removePcbCopper(netName?: string): void {
+    const pcb = this.circuit.pcb;
+    if (!pcb) {
+      if (netName !== undefined) this.requireNet(netName);
+      return;
+    }
+    if (netName === undefined) {
+      pcb.tracks = [];
+      pcb.vias = [];
+      return;
+    }
+    const net = this.requireNet(netName);
+    this.dropPcbNet(net.id);
+  }
+
+  private dropPcbNet(netId: string): void {
+    const pcb = this.circuit.pcb;
+    if (!pcb) return;
+    pcb.tracks = pcb.tracks.filter(t => t.net !== netId);
+    pcb.vias = pcb.vias.filter(v => v.net !== netId);
   }
 
   /** Rename either a component or a net (CNL `mv`). Components win when both exist. */
@@ -235,6 +319,7 @@ export class Tx extends Query {
     if (net.pins.length === 0) {
       delete this.circuit.nets[net.id];
       this.byNetName.delete(net.name.toUpperCase());
+      this.dropPcbNet(net.id);
     }
   }
 }

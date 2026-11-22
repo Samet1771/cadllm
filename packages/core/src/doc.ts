@@ -70,7 +70,11 @@ export class Doc {
     const delta = diffCircuits(this.current, draft, this.parts);
     const source = opts.source ?? 'user';
     if (opts.dryRun) return { rev: this._rev, ...(opts.label ? { label: opts.label } : {}), source, delta, notes: tx.notes };
-    if (isEmptyDelta(delta) && JSON.stringify(draft.meta) === JSON.stringify(this.current.meta)) {
+    if (
+      isEmptyDelta(delta)
+      && JSON.stringify(draft.meta) === JSON.stringify(this.current.meta)
+      && JSON.stringify(draft.pcb ?? null) === JSON.stringify(this.current.pcb ?? null)
+    ) {
       return { rev: this._rev, ...(opts.label ? { label: opts.label } : {}), source, delta, notes: tx.notes };
     }
     this.undoStack.push({ ...(opts.label ? { label: opts.label } : {}), source, before: this.current, after: draft });
@@ -142,10 +146,28 @@ export class Doc {
 }
 
 export const emptyDelta = (): Delta => ({
-  added: [], removed: [], changed: [], renamed: [], netsAdded: [], netsRemoved: [], netsChanged: [], netsRenamed: [],
+  added: [], removed: [], changed: [], renamed: [], netsAdded: [], netsRemoved: [], netsChanged: [], netsRenamed: [], pcbNets: [],
 });
 
 export const isEmptyDelta = (d: Delta): boolean => Object.values(d).every(v => v.length === 0);
+
+function pcbCopperByNet(c: Circuit): Map<string, string> {
+  const byNet = new Map<string, { tracks: unknown[]; vias: unknown[] }>();
+  if (!c.pcb) return new Map();
+  for (const t of c.pcb.tracks) {
+    let entry = byNet.get(t.net);
+    if (!entry) { entry = { tracks: [], vias: [] }; byNet.set(t.net, entry); }
+    entry.tracks.push({ layer: t.layer, width: t.width, points: t.points });
+  }
+  for (const v of c.pcb.vias) {
+    let entry = byNet.get(v.net);
+    if (!entry) { entry = { tracks: [], vias: [] }; byNet.set(v.net, entry); }
+    entry.vias.push({ at: v.at, size: v.size, drill: v.drill });
+  }
+  const out = new Map<string, string>();
+  for (const [id, data] of byNet) out.set(id, JSON.stringify(data));
+  return out;
+}
 
 /** Structural diff by stable ids. Names in the result are refs/net names as of `b` (or `a` for removals). */
 export function diffCircuits(a: Circuit, b: Circuit, _parts?: PartResolver): Delta {
@@ -164,6 +186,18 @@ export function diffCircuits(a: Circuit, b: Circuit, _parts?: PartResolver): Del
     if (na.pins.length !== nb.pins.length || [...na.pins].sort().join() !== [...nb.pins].sort().join()) d.netsChanged.push(nb.name);
   }
   for (const [id, na] of Object.entries(a.nets)) if (!b.nets[id]) d.netsRemoved.push(na.name);
-  for (const list of [d.added, d.removed, d.changed, d.netsAdded, d.netsRemoved, d.netsChanged]) list.sort(naturalCompare);
+
+  const pcbA = pcbCopperByNet(a);
+  const pcbB = pcbCopperByNet(b);
+  const pcbIds = new Set([...pcbA.keys(), ...pcbB.keys()]);
+  const pcbNames = new Set<string>();
+  for (const id of pcbIds) {
+    if (pcbA.get(id) !== pcbB.get(id)) {
+      pcbNames.add(b.nets[id]?.name ?? a.nets[id]?.name ?? id);
+    }
+  }
+  d.pcbNets = [...pcbNames];
+
+  for (const list of [d.added, d.removed, d.changed, d.netsAdded, d.netsRemoved, d.netsChanged, d.pcbNets]) list.sort(naturalCompare);
   return d;
 }

@@ -91,11 +91,12 @@ describe('printDelta', () => {
         netsRemoved: ['OLD'],
         netsChanged: ['VCC'],
         netsRenamed: [['N3', 'LA']],
+        pcbNets: ['VCC'],
       },
       notes: ['merged N3 into LA'],
     };
     expect(printDelta(info, doc.read)).toBe(
-      'ok rev=13 +R3 -R2 ~R1 R4>R10 nets: +LA -OLD ~VCC N3>LA · merged N3 into LA',
+      'ok rev=13 +R3 -R2 ~R1 R4>R10 nets: +LA -OLD ~VCC N3>LA pcb: ~VCC · merged N3 into LA',
     );
   });
 
@@ -182,5 +183,45 @@ test "run"
       resistance: '20k',
       position: '0.75',
     });
+  });
+
+  it('round-trips [pcb] board, rules, tracks, and vias in canonical order and preserves across net rename', () => {
+    const src = `cnl 1
+meta name=pcb-rt
+
+[circuit]
+BAT1 battery 5V
+D1   led     red
+R1   res     330
+
+GND: BAT1.- D1.K
+LA:  D1.A R1.2
+VCC: BAT1.+ R1.1
+
+[pcb]
+BAT1 @5,10
+D1   @20,10,90
+R1   @12,10
+
+board 30x20
+rules clearance=0.2 track=0.25 via=0.6 drill=0.3
+track GND B 0.3 5,12 20,12
+track VCC F 0.4 5,8 12,8 12,10
+via VCC 12,10
+via VCC 15,10 size=0.8 drill=0.4
+`;
+    const doc = loadCircuit(src, lib);
+    const saved1 = saveCnl(doc);
+    // Normalize against canonical saveCnl ordering (placements first, then board, rules, tracks/vias grouped by net)
+    const doc2 = loadCircuit(saved1, lib);
+    expect(saveCnl(doc2)).toBe(saved1);
+    expect(saved1).toContain('BAT1 @5,10\nD1   @20,10,90\nR1   @12,10\nboard 30x20\nrules clearance=0.2 track=0.25 via=0.6 drill=0.3\ntrack GND B 0.3 5,12 20,12\ntrack VCC F 0.4 5,8 12,8 12,10\nvia VCC 12,10\nvia VCC 15,10 size=0.8 drill=0.4');
+
+    // Net rename keeps copper valid
+    doc2.transact(tx => applyEdit(tx, 'mv VCC V5'));
+    const saved3 = saveCnl(doc2);
+    expect(saved3).toContain('track V5 F 0.4 5,8 12,8 12,10');
+    expect(saved3).toContain('via V5 12,10');
+    expect(saveCnl(loadCircuit(saved3, lib))).toBe(saved3);
   });
 });

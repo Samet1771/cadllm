@@ -1,10 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
 import { useState, type FormEvent } from 'react';
+import type { DrcIssue } from '@cadllm/pcb';
 import type { ParsedSimTrace } from '../lib/sim.ts';
 import type { ActivityEntry } from '../lib/types.ts';
 
+export type BottomTab = 'console' | 'drc' | 'serial' | 'activity';
+
 interface BottomPanelProps {
+  activeTab?: BottomTab;
+  onTabChange?: (tab: BottomTab) => void;
   checkOutput: string;
+  drcIssues: DrcIssue[];
+  drcPending?: boolean;
+  onFocusDrcIssue?: (issue: DrcIssue) => void;
   simOutput: string;
   simRunning: boolean;
   activity: ActivityEntry[];
@@ -37,7 +45,12 @@ interface BottomPanelProps {
 }
 
 export function BottomPanel({
+  activeTab,
+  onTabChange,
   checkOutput,
+  drcIssues,
+  drcPending = false,
+  onFocusDrcIssue,
   simOutput,
   simRunning,
   activity,
@@ -68,10 +81,17 @@ export function BottomPanel({
   onPressModeChange,
   onManualPress,
 }: BottomPanelProps) {
-  const [tab, setTab] = useState<'console' | 'serial' | 'activity'>('console');
+  const [localTab, setLocalTab] = useState<BottomTab>('console');
+  const tab = activeTab ?? localTab;
+  const setTab = (next: BottomTab) => {
+    setLocalTab(next);
+    onTabChange?.(next);
+  };
   const [simInput, setSimInput] = useState('dc');
 
   const serialEntries = trace ? Object.entries(trace.serial) : [];
+  const drcErrs = drcIssues.filter(i => i.level === 'error').length;
+  const drcWarns = drcIssues.length - drcErrs;
 
   const submitSim = (e: FormEvent) => {
     e.preventDefault();
@@ -102,6 +122,13 @@ export function BottomPanel({
           </button>
           <button
             type="button"
+            className={`view-tab ${tab === 'drc' ? 'active' : ''}`}
+            onClick={() => setTab('drc')}
+          >
+            DRC{drcPending ? ' (pending)' : ` (${drcIssues.length})`}
+          </button>
+          <button
+            type="button"
             className={`view-tab ${tab === 'serial' ? 'active' : ''}`}
             onClick={() => setTab('serial')}
           >
@@ -115,6 +142,17 @@ export function BottomPanel({
             Activity ({activity.length})
           </button>
         </div>
+
+        {tab === 'drc' && (
+          <div className="drc-header-actions">
+            <span className={`drc-summary ${drcErrs > 0 ? 'drc-has-err' : drcWarns > 0 ? 'drc-has-warn' : 'drc-clean'}`}>
+              {drcPending ? 'PCB DRC pending (M3 WP2)' : `${drcErrs} err · ${drcWarns} warn`}
+            </span>
+            <button type="button" className="btn btn-sm" onClick={onRunCheck}>
+              Re-check
+            </button>
+          </div>
+        )}
 
         {tab === 'console' && (
           <div className="sim-controls-wrap">
@@ -271,6 +309,34 @@ export function BottomPanel({
             <div className="console-col-title">Simulation</div>
             <pre className="console-pre">{simOutput || 'Use Run Sim (or dc / logic / test) to simulate.'}</pre>
           </div>
+        </div>
+      ) : tab === 'drc' ? (
+        <div className="drc-list">
+          {drcPending ? (
+            <div className="empty-hint">
+              PCB DRC checks will appear automatically once M3 WP2 (`@cadllm/pcb` `drc`) lands.
+              {checkOutput ? `\n\n${checkOutput}` : ''}
+            </div>
+          ) : drcIssues.length === 0 ? (
+            <div className="empty-hint drc-clean-msg">0 DRC issues — board is clean!</div>
+          ) : (
+            drcIssues.map((issue, idx) => (
+              <button
+                key={`${issue.code}-${idx}`}
+                type="button"
+                className={`drc-row drc-${issue.level}`}
+                onClick={() => onFocusDrcIssue?.(issue)}
+                title="Click to highlight and zoom to this issue on the PCB"
+              >
+                <span className={`drc-level level-${issue.level}`}>{issue.level === 'error' ? 'ERR' : 'WARN'}</span>
+                <span className="drc-code">{issue.code}</span>
+                <span className="drc-msg">{issue.message}</span>
+                {issue.at.length > 0 && (
+                  <span className="drc-at">{issue.at.join(' ')}</span>
+                )}
+              </button>
+            ))
+          )}
         </div>
       ) : tab === 'serial' ? (
         <div className="serial-pane">

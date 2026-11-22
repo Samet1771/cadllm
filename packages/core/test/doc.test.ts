@@ -226,3 +226,77 @@ describe('__code meta lifecycle', () => {
     expect(doc.read.circuit.meta['__code:U2']).toBeUndefined();
   });
 });
+
+describe('PCB storage, delta, undo, and net lifecycle', () => {
+  it('stores board, rules, tracks, vias and tracks undo/redo/since + pcbNets delta', () => {
+    const doc = new Doc(lib);
+    ledCircuit(doc);
+
+    const iBoard = doc.transact(tx => {
+      tx.setBoard([[0, 0], [30, 0], [30, 20], [0, 20]]);
+      tx.setPcbRules({ clearance: 0.25 });
+    });
+    expect(iBoard.rev).toBe(2);
+    expect(iBoard.delta.pcbNets).toEqual([]);
+    expect(doc.read.circuit.pcb?.rules).toEqual({ clearance: 0.25, track: 0.25, via: 0.6, drill: 0.3 });
+
+    const iTrack = doc.transact(tx => {
+      tx.addTrack({ net: 'VCC', layer: 'F', width: 0.4, points: [[1, 1], [10, 1]] });
+      tx.addVia({ net: 'VCC', at: [10, 1] });
+    });
+    expect(iTrack.delta.pcbNets).toEqual(['VCC']);
+    expect(doc.read.circuit.pcb?.tracks).toHaveLength(1);
+    expect(doc.read.circuit.pcb?.vias).toHaveLength(1);
+
+    const vccId = doc.read.requireNet('VCC').id;
+    expect(doc.read.circuit.pcb?.tracks[0]?.net).toBe(vccId);
+
+    // Undo and redo restore PCB state cleanly
+    const u = doc.undo()!;
+    expect(u.delta.pcbNets).toEqual(['VCC']);
+    expect(doc.read.circuit.pcb?.tracks).toHaveLength(0);
+    doc.redo();
+    expect(doc.read.circuit.pcb?.tracks).toHaveLength(1);
+    expect(doc.since(1).pcbNets).toEqual(['VCC']);
+  });
+
+  it('keeps copper on net rename, moves copper on net merge, and drops copper on net remove', () => {
+    const doc = new Doc(lib);
+    ledCircuit(doc);
+    doc.transact(tx => {
+      tx.addTrack({ net: 'VCC', layer: 'F', points: [[0, 0], [5, 0]] });
+      tx.addVia({ net: 'VCC', at: [5, 0] });
+      tx.addTrack({ net: 'LA', layer: 'B', points: [[2, 2], [8, 2]] });
+    });
+
+    // Rename VCC -> V5 keeps stable net id and does not report pcbNets change
+    const iRename = doc.transact(tx => tx.renameNet('VCC', 'V5'));
+    expect(iRename.delta.netsRenamed).toEqual([['VCC', 'V5']]);
+    expect(iRename.delta.pcbNets).toEqual([]);
+    expect(doc.read.circuit.pcb?.tracks).toHaveLength(2);
+
+    // Merge LA into GND moves LA's track to GND's net id
+    const gndId = doc.read.requireNet('GND').id;
+    const iMerge = doc.transact(tx => tx.renameNet('LA', 'GND'));
+    expect(iMerge.delta.pcbNets).toEqual(['GND', 'LA']);
+    expect(doc.read.circuit.pcb?.tracks.filter(t => t.net === gndId)).toHaveLength(1);
+
+    // Remove V5 drops its track and via
+    const iRemove = doc.transact(tx => tx.removeNet('V5'));
+    expect(iRemove.delta.pcbNets).toEqual(['V5']);
+    expect(doc.read.circuit.pcb?.tracks).toHaveLength(1);
+    expect(doc.read.circuit.pcb?.vias).toHaveLength(0);
+  });
+
+  it('allows footprint prop on parts with footprints and rejects on symbols', () => {
+    const doc = new Doc(lib);
+    const resPart = lib.get('res')!;
+    // Fixture lib may not define footprints on res; check with a part that has footprints if present.
+    if (resPart.footprints?.length) {
+      doc.transact(tx => tx.addComponent({ ref: 'R1', part: 'res', props: { footprint: '0805' } }));
+      expect(doc.read.requireComponent('R1').props.footprint).toBe('0805');
+    } else {
+      expect(() => doc.transact(tx => tx.addComponent({ ref: 'R1', part: 'res', props: { footprint: '0805' } }))).toThrow(/has no prop footprint/);
+    }
+  });
+});

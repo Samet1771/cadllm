@@ -4,7 +4,7 @@
 
 AI agents drive it over MCP with very few tokens: build circuits, simulate them and test them, headless. Humans get a breadboard / schematic / PCB UI on the same engine.
 
-**Status:** M2 (analog/SPICE, Arduino/avr8js, mixed-signal co-sim, live UI), pre-alpha. See [docs/FOUNDATION.md](docs/FOUNDATION.md) for the design.
+**Status:** M3 (analog/SPICE, Arduino/avr8js, mixed-signal co-sim, PCB layout/autorouting/DRC/Gerber/KiCad, live UI), pre-alpha. See [docs/FOUNDATION.md](docs/FOUNDATION.md) for the design.
 
 ## Development
 
@@ -42,6 +42,21 @@ claude mcp add cadllm -- node /path/to/CadLLm/packages/cli/src/main.ts mcp
 ```
 
 When `cadllm serve` is running, the registered `cadllm` MCP server automatically attaches to it so AI edits and browser edits share one workspace live (pass `--standalone` for an isolated stdio session).
+
+### PCB layout, autorouting & fabrication export
+
+Over MCP (or in the Web UI's **PCB** tab):
+
+- `layout view=pcb` auto-places footprints inside the board outline (`board 30x20`).
+- `layout view=pcb op=route` runs the 2-layer (`F`/`B`) A* autorouter with vias and rip-up.
+- `check` runs ERC + PCB DRC (clearance, shorts, courtyard overlap, board edge, track width, drill size, unrouted nets).
+- `export format=fab` writes RS-274X X2 Gerbers, Excellon `PTH`/`NPTH` drill files, BOM, and pick-and-place CSVs into `<project>-fab.zip` (also supports `gerber`, `drill`, `kicad`, `bom`, `pnp`, `svg`).
+
+To generate the fabrication zip plus per-layer and top/bottom PNG previews for upload to a fab viewer:
+
+```sh
+node packages/export/scripts/fab-preview.ts examples/led-pcb.cnl fab-out/led-pcb
+```
 
 ## License
 

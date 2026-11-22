@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
-import { basicChecks, Doc, naturalCompare, parseSI, type PartDef, type TxInfo } from '@cadllm/core';
+import { basicChecks, Doc, naturalCompare, parseSI, type PartDef, type PcbLayer, type PcbRules, type TxInfo } from '@cadllm/core';
 import { VIEWS, type ViewId } from '@cadllm/views';
 import { buildPartResolver } from './parts.ts';
+import { autoPlacePcbWithFallback, checkPcbDrc, routePcbWithFallback } from './pcbFallback.ts';
 import { parsePressIntervals } from './sim.ts';
 import type { ChangedNotification, RpcApi, StateResponse } from './types.ts';
 
@@ -136,6 +137,21 @@ export const DEMO_PARTS: PartDef[] = [
     footprints: ['DIP-14', 'SOIC-14'],
     views: { sch: 'ic', bb: 'dip' },
   },
+  {
+    id: 'dc_supply',
+    name: 'DC Supply Header',
+    summary: '2-pin DC power header',
+    category: 'source',
+    refPrefix: 'J',
+    pins: [
+      { id: '1', name: '+', aliases: ['pos', 'VCC'], type: 'power_out' },
+      { id: '2', name: '-', aliases: ['neg', 'GND'], type: 'power_out' },
+    ],
+    props: { voltage: { type: 'number', unit: 'V', default: '5', description: 'Supply voltage' } },
+    valueProp: 'voltage',
+    footprints: ['Header_1x02_P2.54mm'],
+    views: { sch: 'battery', bb: 'battery' },
+  },
 ];
 
 const BLINK_CODE = [
@@ -237,12 +253,14 @@ export function createDemoBackend(): DemoBackend {
   const blinkDoc = new Doc(resolver);
   const buttonDoc = new Doc(resolver);
   const nandDoc = new Doc(resolver);
+  const ledPcbDoc = new Doc(resolver);
 
   let projectName = 'arduino-blink';
   const projects = new Map<string, Doc>([
     ['arduino-blink', blinkDoc],
     ['arduino-button-led', buttonDoc],
     ['nand-led-demo', nandDoc],
+    ['led-pcb', ledPcbDoc],
   ]);
 
   const summarize = (info: TxInfo): string => {
@@ -253,6 +271,7 @@ export function createDemoBackend(): DemoBackend {
       ...d.changed.map(r => `~${r}`),
       ...d.netsAdded.map(n => `+${n}`),
       ...d.netsChanged.map(n => `~${n}`),
+      ...(d.pcbNets.length ? [`pcb: ${d.pcbNets.map(n => `~${n}`).join(' ')}`] : []),
       ...info.notes,
     ];
     return items.join(' ');
@@ -300,16 +319,33 @@ export function createDemoBackend(): DemoBackend {
 
   nandDoc.transact(tx => {
     tx.addComponent({ ref: 'BAT1', part: 'battery', props: { voltage: '5V' }, place: { sch: '2,6', bb: '-6,4' } });
-    tx.addComponent({ ref: 'SW1', part: 'button', props: { state: 'released' }, place: { sch: '8,4', bb: 'E4' } });
-    tx.addComponent({ ref: 'R2', part: 'res', props: { resistance: '10k' }, place: { sch: '8,10,90', bb: 'E8-E12' } });
-    tx.addComponent({ ref: 'U1', part: '74hc00', place: { sch: '18,6', bb: 'E14' } });
-    tx.addComponent({ ref: 'R1', part: 'res', props: { resistance: '330' }, place: { sch: '28,6', bb: 'F18-F22' } });
-    tx.addComponent({ ref: 'D1', part: 'led', props: { color: 'red' }, place: { sch: '34,6,90', bb: 'F24-F26' } });
+    tx.addComponent({ ref: 'SW1', part: 'button', props: { state: 'released' }, place: { sch: '8,4', bb: 'E4', pcb: '8,8' } });
+    tx.addComponent({ ref: 'R2', part: 'res', props: { resistance: '10k' }, place: { sch: '8,10,90', bb: 'E8-E12', pcb: '8,18' } });
+    tx.addComponent({ ref: 'U1', part: '74hc00', place: { sch: '18,6', bb: 'E14', pcb: '20,14' } });
+    tx.addComponent({ ref: 'R1', part: 'res', props: { resistance: '330' }, place: { sch: '28,6', bb: 'F18-F22', pcb: '32,10' } });
+    tx.addComponent({ ref: 'D1', part: 'led', props: { color: 'red' }, place: { sch: '34,6,90', bb: 'F24-F26', pcb: '38,18' } });
     tx.connect('VCC', ['BAT1.+', 'SW1.1', 'U1.1A', 'U1.VCC']);
     tx.connect('IN', ['SW1.2', 'R2.1', 'U1.1B']);
     tx.connect('Y', ['U1.1Y', 'R1.1']);
     tx.connect('LA', ['R1.2', 'D1.A']);
     tx.connect('GND', ['BAT1.-', 'R2.2', 'U1.GND', 'D1.K']);
+    tx.setBoard([[0, 0], [45, 0], [45, 28], [0, 28]]);
+    tx.setPcbRules({ clearance: 0.2, track: 0.25, via: 0.6, drill: 0.3 });
+  }, { source: 'system', label: 'init' });
+
+  ledPcbDoc.transact(tx => {
+    tx.addComponent({ ref: 'J1', part: 'dc_supply', props: { voltage: '5V' }, place: { sch: '4,8', bb: 'D4-D5', pcb: '5,7' } });
+    tx.addComponent({ ref: 'R1', part: 'res', props: { resistance: '330', footprint: 'THT-axial' }, place: { sch: '14,8', bb: 'E8-E12', pcb: '15,7' } });
+    tx.addComponent({ ref: 'D1', part: 'led', props: { color: 'red', footprint: 'LED_D5.0mm' }, place: { sch: '22,8', bb: 'E15-E17', pcb: '24,13' } });
+    tx.connect('VCC', ['J1.+', 'R1.1']);
+    tx.connect('LA', ['R1.2', 'D1.A']);
+    tx.connect('GND', ['D1.K', 'J1.-']);
+    tx.setBoard([[0, 0], [30, 0], [30, 20], [0, 20]]);
+    tx.setPcbRules({ clearance: 0.2, track: 0.25, via: 0.6, drill: 0.3 });
+    tx.addTrack({ net: 'VCC', layer: 'F', width: 0.35, points: [[5, 5.73], [9.92, 5.73], [9.92, 7]] });
+    tx.addTrack({ net: 'LA', layer: 'F', width: 0.3, points: [[20.08, 7], [20.08, 10]] });
+    tx.addVia({ net: 'LA', at: [20.08, 10] });
+    tx.addTrack({ net: 'LA', layer: 'B', width: 0.3, points: [[20.08, 10], [22.73, 13]] });
   }, { source: 'system', label: 'init' });
 
   for (const [name, d] of projects) attachDoc(name, d);
@@ -336,6 +372,36 @@ export function createDemoBackend(): DemoBackend {
     return `${projectName} rev=${curDoc().rev}${body ? `\n${body}` : ' (empty)'}`;
   };
 
+  const parseDemoPoint = (raw: string): [number, number] | undefined => {
+    const parts = raw.split(',');
+    if (parts.length !== 2) return undefined;
+    const x = Number(parts[0]);
+    const y = Number(parts[1]);
+    return Number.isFinite(x) && Number.isFinite(y) ? [x, y] : undefined;
+  };
+
+  const parseDemoPlaceMap = (toks: string[]): Record<string, string> => {
+    const place: Record<string, string> = {};
+    let i = 0;
+    while (i < toks.length) {
+      const t = toks[i]!;
+      const c = t.indexOf(':');
+      if (t.startsWith('@') && c > 1) {
+        const viewKey = t.slice(1, c);
+        const parts = [t.slice(c + 1)];
+        i += 1;
+        while (i < toks.length && !toks[i]!.startsWith('@') && !toks[i]!.includes('=')) {
+          parts.push(toks[i]!);
+          i += 1;
+        }
+        place[viewKey] = parts.filter(Boolean).join(' ');
+      } else {
+        i += 1;
+      }
+    }
+    return place;
+  };
+
   const applyDemoCnl = (cnl: string, source: 'user' | 'ai' = 'user'): TxInfo => {
     const lines = cnl
       .split(/[\r\n;]+/)
@@ -343,6 +409,70 @@ export function createDemoBackend(): DemoBackend {
       .filter(l => l && !l.startsWith('#'));
     return curDoc().transact(tx => {
       for (const line of lines) {
+        const toks = line.split(/\s+/);
+        const head = toks[0]!;
+        if (head === '-tracks') {
+          const target = toks[1];
+          if (target === '*') tx.removePcbCopper();
+          else if (target) tx.removePcbCopper(target);
+          continue;
+        }
+        if (head === 'board') {
+          if (toks.length === 2) {
+            const rect = toks[1]!.match(/^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/i);
+            if (rect) {
+              const w = Number(rect[1]);
+              const h = Number(rect[2]);
+              tx.setBoard([[0, 0], [w, 0], [w, h], [0, h]]);
+              continue;
+            }
+          }
+          const pts = toks.slice(1).map(parseDemoPoint).filter((p): p is [number, number] => Boolean(p));
+          if (pts.length >= 3) tx.setBoard(pts);
+          continue;
+        }
+        if (head === 'rules') {
+          const rules: Partial<PcbRules> = {};
+          for (const t of toks.slice(1)) {
+            const eq = t.indexOf('=');
+            if (eq > 0) {
+              const k = t.slice(0, eq) as keyof PcbRules;
+              const v = Number(t.slice(eq + 1));
+              if (Number.isFinite(v) && v > 0) rules[k] = v;
+            }
+          }
+          tx.setPcbRules(rules);
+          continue;
+        }
+        if (head === 'track' && toks.length >= 6) {
+          const net = toks[1]!;
+          const layer = toks[2]!.toUpperCase() as PcbLayer;
+          const width = Number(toks[3]);
+          const points = toks.slice(4).map(parseDemoPoint).filter((p): p is [number, number] => Boolean(p));
+          if (points.length >= 2) tx.addTrack({ net, layer, width, points });
+          continue;
+        }
+        if (head === 'via' && toks.length >= 3) {
+          const net = toks[1]!;
+          const at = parseDemoPoint(toks[2]!);
+          if (at) {
+            let size: number | undefined;
+            let drill: number | undefined;
+            for (const t of toks.slice(3)) {
+              const eq = t.indexOf('=');
+              if (eq > 0) {
+                const k = t.slice(0, eq);
+                const v = Number(t.slice(eq + 1));
+                if (Number.isFinite(v) && v > 0) {
+                  if (k === 'size') size = v;
+                  if (k === 'drill') drill = v;
+                }
+              }
+            }
+            tx.addVia({ net, at, ...(size !== undefined ? { size } : {}), ...(drill !== undefined ? { drill } : {}) });
+          }
+          continue;
+        }
         if (line.startsWith('-')) {
           const colon = line.indexOf(':');
           if (colon > 1) {
@@ -357,23 +487,27 @@ export function createDemoBackend(): DemoBackend {
           continue;
         }
         if (line.startsWith('~')) {
-          const toks = line.slice(1).trim().split(/\s+/);
-          const ref = toks[0]!;
+          const ref = toks[0]!.slice(1);
           const props: Record<string, string | null> = {};
           const place: Record<string, string | null> = {};
-          for (const t of toks.slice(1)) {
+          let i = 1;
+          while (i < toks.length) {
+            const t = toks[i]!;
             if (t.startsWith('@')) {
               const c = t.indexOf(':');
-              if (c > 1) place[t.slice(1, c)] = t.slice(c + 1) || null;
-            } else {
-              const eq = t.indexOf('=');
-              if (eq > 0) props[t.slice(0, eq)] = t.slice(eq + 1) || null;
+              if (c > 1) {
+                const parsed = parseDemoPlaceMap(toks.slice(i));
+                Object.assign(place, parsed);
+              }
+              break;
             }
+            const eq = t.indexOf('=');
+            if (eq > 0) props[t.slice(0, eq)] = t.slice(eq + 1) || null;
+            i += 1;
           }
           tx.updateComponent(ref, { props, place });
           continue;
         }
-        const toks = line.split(/\s+/);
         if (toks[0]!.includes(':')) {
           const c = toks[0]!.indexOf(':');
           const name = toks[0]!.slice(0, c);
@@ -383,11 +517,7 @@ export function createDemoBackend(): DemoBackend {
           continue;
         }
         if (toks.length >= 2 && toks[1]!.startsWith('@')) {
-          const place: Record<string, string> = {};
-          for (const t of toks.slice(1)) {
-            const c = t.indexOf(':');
-            if (c > 1) place[t.slice(1, c)] = t.slice(c + 1);
-          }
+          const place = parseDemoPlaceMap(toks.slice(1));
           tx.updateComponent(toks[0]!, { place });
           continue;
         }
@@ -396,10 +526,11 @@ export function createDemoBackend(): DemoBackend {
         const p = resolver.get(partId);
         const props: Record<string, string> = {};
         const place: Record<string, string> = {};
-        for (const t of rest) {
+        for (let i = 0; i < rest.length; i++) {
+          const t = rest[i]!;
           if (t.startsWith('@')) {
-            const c = t.indexOf(':');
-            if (c > 1) place[t.slice(1, c)] = t.slice(c + 1);
+            Object.assign(place, parseDemoPlaceMap(rest.slice(i)));
+            break;
           } else if (t.includes('=')) {
             const eq = t.indexOf('=');
             props[t.slice(0, eq)] = t.slice(eq + 1);
@@ -420,6 +551,18 @@ export function createDemoBackend(): DemoBackend {
     },
     simulateAiEdit() {
       const d = curDoc();
+      if (projectName === 'led-pcb') {
+        const gnd = d.read.net('GND');
+        const hasGndTrack = (d.read.circuit.pcb?.tracks ?? []).some(t => gnd && t.net === gnd.id);
+        if (!hasGndTrack) {
+          applyDemoCnl('track GND B 0.35 25.27,13 25.27,16 5,16 5,8.27', 'ai');
+        } else {
+          const r1 = d.read.component('R1');
+          const nextVal = r1?.props.resistance === '470' ? '330' : '470';
+          applyDemoCnl(`~R1 resistance=${nextVal}`, 'ai');
+        }
+        return;
+      }
       const u1 = d.read.component('U1');
       if (u1?.part === 'arduino_uno') {
         const cur = d.read.circuit.meta[`__code:${u1.ref}`] ?? BLINK_CODE;
@@ -500,7 +643,10 @@ export function createDemoBackend(): DemoBackend {
           return matches.map(p => `${p.id}  ${p.summary}  ${p.pins.length}p${p.footprints?.length ? ` ${p.footprints.join('/')}` : ''}`).join('\n') as T;
         }
         case 'check': {
-          const issues = basicChecks(d.read);
+          const basic = basicChecks(d.read);
+          const hasPcb = Boolean(d.read.circuit.pcb) || d.read.components().some(c => c.place.pcb !== undefined);
+          const pcbIssues = hasPcb ? checkPcbDrc(d.read, true).issues : [];
+          const issues = [...basic, ...pcbIssues];
           const errs = issues.filter(i => i.level === 'error').length;
           return [`${projectName} rev=${d.rev} ${errs} err ${issues.length - errs} warn`, ...issues.map(i => `${i.level === 'error' ? 'err ' : 'warn'} ${i.message}`)].join('\n') as T;
         }
@@ -539,10 +685,30 @@ export function createDemoBackend(): DemoBackend {
         }
         case 'layout': {
           const v = String(params.view ?? 'sch') as ViewId;
-          const res = VIEWS[v].autoPlace(d.read, {});
+          const op = params.op === 'route' ? 'route' : 'place';
+          if (op === 'route') {
+            if (v !== 'pcb') throw new Error('op=route is only supported for view=pcb');
+            const nets = typeof params.nets === 'string' ? params.nets.split(/[\s,]+/).filter(Boolean) : undefined;
+            const r = routePcbWithFallback(d.read, { ...(nets?.length ? { nets } : {}), ...(params.all ? { reroute: true } : {}) });
+            const info = d.transact(tx => {
+              if (params.all) tx.removePcbCopper();
+              const pcbData = tx.ensurePcb();
+              pcbData.tracks.push(...r.tracks);
+              pcbData.vias.push(...r.vias);
+            }, { label: 'route pcb', source: 'user' });
+            return `ok rev=${info.rev} routed ${r.tracks.length} tracks, ${r.vias.length} vias` as T;
+          }
+          const res = v === 'pcb'
+            ? autoPlacePcbWithFallback(d.read, { ...(params.all ? { all: true } : {}) })
+            : VIEWS[v].autoPlace(d.read, {});
           const lines = Object.entries(res.place).map(([ref, pos]) => `${ref} @${v}:${pos}`);
           if (lines.length) applyDemoCnl(lines.join('\n'), 'user');
           return `ok placed ${lines.length} in ${v}` as T;
+        }
+        case 'export': {
+          const format = String(params.format ?? 'fab');
+          const out = `${projectName}-${format === 'fab' ? 'fab.zip' : format}`;
+          return `${out}\nok exported ${format} (demo)` as T;
         }
         default:
           throw new Error(`method not found: ${method}`);

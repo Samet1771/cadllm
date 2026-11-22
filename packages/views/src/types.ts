@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
 import type { Query } from '@cadllm/core';
 
-export type ViewId = 'sch' | 'bb';
+export type ViewId = 'sch' | 'bb' | 'pcb';
 
 export interface Pt {
   x: number;
@@ -36,10 +36,15 @@ export interface RenderOptions {
 export type ViewIssueCode =
   | 'unplaced'       // warn: component has no position in this view (it is not drawn)
   | 'bad_place'      // error: place string can't be parsed or doesn't fit the part
-  | 'overlap'        // warn (sch) / error (bb): two parts occupy the same cells/holes
-  | 'off_board'      // error (bb): a pin lands outside the breadboard
+  | 'overlap'        // warn (sch) / error (bb/pcb): two parts occupy the same cells/holes/courtyard
+  | 'off_board'      // error (bb/pcb): a pin/part lands outside the board
   | 'bb_short'       // error (bb): pins of different nets share one strip or rail
-  | 'strip_full';    // warn (bb): no free hole left in a strip for a jumper
+  | 'strip_full'     // warn (bb): no free hole left in a strip for a jumper
+  | 'unrouted'       // warn/error (pcb): unrouted ratsnest connections remain
+  | 'clearance'      // error (pcb): copper clearance violation
+  | 'track_width'    // error (pcb): track narrower than design rule minimum
+  | 'drill'          // error (pcb): via/pad drill violation
+  | 'short';         // error (pcb): copper short between different nets
 
 export interface ViewIssue {
   level: 'error' | 'warn';

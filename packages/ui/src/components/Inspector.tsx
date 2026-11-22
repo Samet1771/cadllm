@@ -1,13 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
 import { useEffect, useState } from 'react';
-import { pinKey, type Component, type PartDef, type Query } from '@cadllm/core';
+import { pinKey, type Component, type PartDef, type PcbLayer, type Query } from '@cadllm/core';
 import type { ViewId } from '@cadllm/views';
 import { CodeEditor } from './CodeEditor.tsx';
+
+export interface SelectedTrackInfo {
+  netName: string;
+  layer: PcbLayer;
+  index: number;
+}
 
 interface InspectorProps {
   query: Query;
   activeView: ViewId;
   selectedRef: string | undefined;
+  selectedTrack?: SelectedTrackInfo;
   theme: 'light' | 'dark';
   cnlText: string;
   cnlDirty: boolean;
@@ -26,7 +33,9 @@ interface InspectorProps {
   onSyncCnl: () => void;
   onPatchProp: (ref: string, key: string, value: string) => void;
   onRotate: (ref: string) => void;
+  onFlipPcb?: (ref: string) => void;
   onDelete: (ref: string) => void;
+  onDeleteSelectedTrack?: () => void;
   onDisconnectPin: (netName: string, pinLabel: string) => void;
 }
 
@@ -37,6 +46,7 @@ function ComponentInspector({
   activeView,
   onPatchProp,
   onRotate,
+  onFlipPcb,
   onDelete,
   onDisconnectPin,
 }: {
@@ -46,6 +56,7 @@ function ComponentInspector({
   activeView: ViewId;
   onPatchProp: (ref: string, key: string, value: string) => void;
   onRotate: (ref: string) => void;
+  onFlipPcb?: (ref: string) => void;
   onDelete: (ref: string) => void;
   onDisconnectPin: (netName: string, pinLabel: string) => void;
 }) {
@@ -84,9 +95,14 @@ function ComponentInspector({
           </div>
         </div>
         <div className="btn-group">
-          {activeView === 'sch' && (
+          {(activeView === 'sch' || activeView === 'pcb') && (
             <button type="button" className="btn btn-sm" onClick={() => onRotate(comp.ref)} title="Rotate 90° (R)">
               Rotate
+            </button>
+          )}
+          {activeView === 'pcb' && onFlipPcb && (
+            <button type="button" className="btn btn-sm" onClick={() => onFlipPcb(comp.ref)} title="Flip top/bottom (F)">
+              Flip
             </button>
           )}
           <button type="button" className="btn btn-sm btn-danger" onClick={() => onDelete(comp.ref)} title="Delete component (Del)">
@@ -98,6 +114,7 @@ function ComponentInspector({
       <div className="place-badges">
         <span className="place-badge">@sch: {comp.place.sch ?? 'unplaced'}</span>
         <span className="place-badge">@bb: {comp.place.bb ?? 'unplaced'}</span>
+        <span className="place-badge">@pcb: {comp.place.pcb ?? 'unplaced'}</span>
       </div>
 
       {propEntries.length > 0 && (
@@ -192,6 +209,7 @@ export function Inspector({
   query,
   activeView,
   selectedRef,
+  selectedTrack,
   theme,
   cnlText,
   cnlDirty,
@@ -210,7 +228,9 @@ export function Inspector({
   onSyncCnl,
   onPatchProp,
   onRotate,
+  onFlipPcb,
   onDelete,
+  onDeleteSelectedTrack,
   onDisconnectPin,
 }: InspectorProps) {
   const comp = selectedRef ? query.component(selectedRef) : undefined;
@@ -236,6 +256,7 @@ export function Inspector({
         <div className="panel-header">
           <span className="panel-title">Inspector</span>
           {comp && <span className="muted-tag">{comp.ref}</span>}
+          {!comp && selectedTrack && <span className="muted-tag">track: {selectedTrack.netName}</span>}
         </div>
         {comp ? (
           <ComponentInspector
@@ -245,9 +266,32 @@ export function Inspector({
             activeView={activeView}
             onPatchProp={onPatchProp}
             onRotate={onRotate}
+            onFlipPcb={onFlipPcb}
             onDelete={onDelete}
             onDisconnectPin={onDisconnectPin}
           />
+        ) : selectedTrack ? (
+          <div className="inspector-body">
+            <div className="inspector-comp-head">
+              <div>
+                <div className="inspector-ref">Net {selectedTrack.netName}</div>
+                <div className="inspector-part">Selected PCB copper on layer {selectedTrack.layer}</div>
+              </div>
+              {onDeleteSelectedTrack && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-danger"
+                  onClick={onDeleteSelectedTrack}
+                  title="Remove all tracks & vias on this net (Del)"
+                >
+                  Remove Copper
+                </button>
+              )}
+            </div>
+            <div className="empty-hint">
+              Press <kbd>Del</kbd> or click Remove Copper to execute <code>-tracks {selectedTrack.netName}</code>.
+            </div>
+          </div>
         ) : (
           <div className="empty-hint">
             Click a component on the canvas to inspect properties and pins.

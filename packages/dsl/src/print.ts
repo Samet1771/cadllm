@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
-import { isEmptyDelta, naturalCompare, type Component, type Doc, type Net, type Query, type TxInfo } from '@cadllm/core';
+import { DEFAULT_PCB_RULES, isEmptyDelta, naturalCompare, type Component, type Doc, type Net, type Query, type TxInfo } from '@cadllm/core';
 import { CODE_META_PREFIX, TESTS_META_KEY } from './edit.ts';
 import { quoteValue } from './lexer.ts';
 
@@ -118,11 +118,32 @@ export function printDelta(info: TxInfo, _q: Query): string {
   for (const n of [...d.netsChanged].sort(naturalCompare)) netParts.push(`~${n}`);
   for (const [from, to] of [...d.netsRenamed].sort((a, b) => naturalCompare(a[0], b[0]))) netParts.push(`${from}>${to}`);
   if (netParts.length > 0) parts.push(`nets: ${netParts.join(' ')}`);
+  if (d.pcbNets.length > 0) parts.push(`pcb: ${[...d.pcbNets].sort(naturalCompare).map(n => `~${n}`).join(' ')}`);
 
   const notes = info.notes.length > 0 ? ` · ${info.notes.join(' · ')}` : '';
   if (isEmptyDelta(d) && info.notes.length === 0) return `ok rev=${info.rev} (no change)`;
   if (parts.length === 0) return `ok rev=${info.rev}${notes}`;
   return `ok rev=${info.rev} ${parts.join(' ')}${notes}`;
+}
+
+const fmtMm = (n: number): string => {
+  const r = Math.round(n * 1e4) / 1e4;
+  return Object.is(r, -0) ? '0' : String(r);
+};
+
+function formatBoardLine(outline: [number, number][]): string {
+  if (outline.length === 4) {
+    const [p0, p1, p2, p3] = outline as [[number, number], [number, number], [number, number], [number, number]];
+    if (
+      p0[0] === 0 && p0[1] === 0
+      && p1[0] > 0 && p1[1] === 0
+      && p2[0] === p1[0] && p2[1] > 0
+      && p3[0] === 0 && p3[1] === p2[1]
+    ) {
+      return `board ${fmtMm(p1[0])}x${fmtMm(p2[1])}`;
+    }
+  }
+  return `board ${outline.map(([x, y]) => `${fmtMm(x)},${fmtMm(y)}`).join(' ')}`;
 }
 
 /** Serialize a Doc into a canonical `.cnl` file. */
@@ -145,13 +166,44 @@ export function saveCnl(doc: Doc): string {
   const comps = q.components();
   for (const [view, section] of VIEW_SECTIONS) {
     const withView = comps.filter(c => c.place[view] !== undefined);
-    if (withView.length === 0) continue;
-    const maxRef = Math.max(...withView.map(c => c.ref.length));
+    const pcb = view === 'pcb' ? q.circuit.pcb : undefined;
+    const hasPcbData = pcb !== undefined && (
+      pcb.board !== undefined
+      || pcb.rules !== undefined
+      || pcb.tracks.length > 0
+      || pcb.vias.length > 0
+    );
+    if (withView.length === 0 && !hasPcbData) continue;
+
     const sectionLines = [`[${section}]`];
-    for (const c of withView) {
-      const pos = c.place[view]!;
-      const formattedPos = pos === '' || pos !== pos.trim() || /[;#"\n\t\\]/.test(pos) ? quoteValue(pos) : pos;
-      sectionLines.push(`${c.ref.padEnd(maxRef)} @${formattedPos}`);
+    if (withView.length > 0) {
+      const maxRef = Math.max(...withView.map(c => c.ref.length));
+      for (const c of withView) {
+        const pos = c.place[view]!;
+        const formattedPos = pos === '' || pos !== pos.trim() || /[;#"\n\t\\]/.test(pos) ? quoteValue(pos) : pos;
+        sectionLines.push(`${c.ref.padEnd(maxRef)} @${formattedPos}`);
+      }
+    }
+    if (pcb) {
+      if (pcb.board) sectionLines.push(formatBoardLine(pcb.board.outline));
+      if (pcb.rules) {
+        const r = pcb.rules;
+        sectionLines.push(`rules clearance=${fmtMm(r.clearance)} track=${fmtMm(r.track)} via=${fmtMm(r.via)} drill=${fmtMm(r.drill)}`);
+      }
+      const effRules = pcb.rules ?? DEFAULT_PCB_RULES;
+      for (const net of q.nets()) {
+        for (const t of pcb.tracks) {
+          if (t.net !== net.id) continue;
+          const pts = t.points.map(([x, y]) => `${fmtMm(x)},${fmtMm(y)}`).join(' ');
+          sectionLines.push(`track ${net.name} ${t.layer} ${fmtMm(t.width)} ${pts}`);
+        }
+        for (const v of pcb.vias) {
+          if (v.net !== net.id) continue;
+          const custom = v.size !== effRules.via || v.drill !== effRules.drill;
+          const tail = custom ? ` size=${fmtMm(v.size)} drill=${fmtMm(v.drill)}` : '';
+          sectionLines.push(`via ${net.name} ${fmtMm(v.at[0])},${fmtMm(v.at[1])}${tail}`);
+        }
+      }
     }
     blocks.push(sectionLines.join('\n'));
   }

@@ -12,6 +12,11 @@ VCC: BAT1.+ R1.1      connect pins (net created if new; unnamed pins: N: …)
 -VCC: R1.1            disconnect pins
 -VCC                  delete net
 mv R1 R9              rename ref or net; mv N3 VCC merges N3 into VCC
+board 50x40           PCB board rectangle (or polygon: board 0,0 50,0 50,40 0,40)
+rules clearance=0.2 track=0.25 via=0.6 drill=0.3
+track VCC F 0.4 10,10 20,10   add PCB track (F|B, width mm, >=2 points)
+via VCC 20,15         add PCB via ([size=...] [drill=...])
+-tracks VCC | *       remove PCB tracks/vias for net (or * for all)
 pins: REF.PIN by number, name or alias (U1.1 = U1.1A, D1.A = D1.anode)
 values: SI with RKM ok (4k7 2.2u 10meg 330); quote values with spaces.
 Joining two named nets is refused (net_short) – use mv to merge on purpose.`,
@@ -49,16 +54,19 @@ Edits go to the current project; the first edit creates "untitled".
 fork = sandbox copy (becomes current); merge = write the fork back into its parent.
 read since=<rev> shows what changed (e.g. by a human in the UI).
 history op=undo|redo|log [n].`,
-  views: `Views are drawn from the netlist; wires are derived (never edited).
-layout view=sch|bb [refs=R1,D1] [all=true]   auto-place parts
-render view=sch|bb [select=U1,R2]            PNG to look at
+  views: `Schematic and breadboard wires are derived; PCB tracks/vias are stored copper.
+layout view=sch|bb|pcb [refs=R1,D1] [all=true]   auto-place parts
+layout view=pcb op=route [nets=VCC,GND]          autoroute PCB nets
+render view=sch|bb|pcb [select=U1,R2]            PNG to look at
+export format=gerber|drill|fab|kicad|bom|pnp|svg [view=...] [path=...]
 place by hand in edit lines:
   R1 @sch:12,4,90        schematic grid x,y[,rot][,m] (rot 0/90/180/270, m = mirror)
   U1 @bb:E10             breadboard: DIP pin 1 at E10, straddling the channel
   R1 @bb:F20-F24         2-pin part between two holes; holes A1..J30, rails T+1 T-1 B+1 B-1
   BAT1 @bb:-8,2          off-board part, in hole pitches from the board's top-left
+  U1 @pcb:12.7,8,90 top  PCB placement in mm, clockwise deg, side (top|bottom)
 Breadboard strips (A-E, F-J per column) and rails connect pins; jumpers are added for the rest.
-check reports bb_short when one strip holds two nets.`,
+check reports bb_short on breadboard and PCB DRC/connectivity issues when PCB data exists.`,
   examples: `LED with resistor (5 V, ~9 mA):
 BAT1 battery 5; R1 res 330; D1 led red
 VCC: BAT1.+ R1.1; LA: R1.2 D1.A; GND: D1.K BAT1.-
@@ -80,7 +88,7 @@ check: sim run="logic clock=SW1 reset=SW2 cycles=4 out=Q1,Q0"`,
 export function help(topic: string | undefined, lib: Library): string {
   const t = topic?.trim().toLowerCase();
   if (!t) {
-    return `CadLLM: circuits as text (CNL). Tools: project read edit find part check sim layout render history help.
+    return `CadLLM: circuits as text (CNL). Tools: project read edit find part check sim layout render export history help.
 Typical: find → part → edit (CNL lines) → sim (dc/logic + expect) → fix → project save.
 Topics: help topic=edit|sim|tests|project|views|examples|parts
 ${TOPICS.examples!.split('\n\n')[0]}`;

@@ -25,4 +25,16 @@ describe('integration with @cadllm/library', () => {
     expect(saveCnl(doc)).toBe(golden);
     expect(parseCnl(saveCnl(doc)).tests).toHaveLength(2);
   });
+
+  it('loads examples/led-pcb.cnl against built-in parts and round-trips verbatim', () => {
+    const library = loadLibrary([builtinPartsDir]);
+    const path = resolve(import.meta.dirname, '../../../examples/led-pcb.cnl');
+    const golden = readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
+
+    const doc = loadCircuit(golden, library);
+    expect(saveCnl(doc)).toBe(golden);
+    expect(doc.read.circuit.pcb?.board?.outline).toEqual([[0, 0], [30, 0], [30, 20], [0, 20]]);
+    expect(doc.read.requireComponent('R1').props.footprint).toBe('THT-axial');
+    expect(doc.read.requireComponent('D1').props.footprint).toBe('LED_D5.0mm');
+  });
 });

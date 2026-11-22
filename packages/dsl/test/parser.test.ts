@@ -68,6 +68,7 @@ test "transient and dc"
     ]);
     expect(doc.schematic).toEqual([{ line: 16, ref: 'U1', pos: '40,20' }]);
     expect(doc.pcb).toEqual([{ line: 19, ref: 'U1', pos: '12.7,8.0,90 top' }]);
+    expect(doc.pcbStmts).toEqual([]);
 
     expect(doc.tests).toHaveLength(2);
     expect(doc.tests[0]).toEqual({
@@ -213,5 +214,41 @@ test "bad measures"
       expect(msgs[1]).toMatch(/^line 7: invalid time "nope"/);
       expect(msgs[2]).toMatch(/^line 8: cannot parse expect/);
     }
+  });
+
+  it('parses [pcb] board, rules, track, and via statements and rejects bad syntax', () => {
+    const src = `cnl 1
+[circuit]
+R1 res 330
+VCC: R1.1
+
+[pcb]
+R1 @10,10,90 top
+board 50x40
+rules clearance=0.2 track=0.25 via=0.6 drill=0.3
+track VCC F 0.4 10,10 20,10 20,15
+via VCC 20,15 size=0.8 drill=0.4
+`;
+    const doc = parseCnl(src);
+    expect(doc.pcb).toEqual([{ line: 7, ref: 'R1', pos: '10,10,90 top' }]);
+    expect(doc.pcbStmts).toEqual([
+      { kind: 'board', line: 8, outline: [[0, 0], [50, 0], [50, 40], [0, 40]] },
+      { kind: 'rules', line: 9, rules: { clearance: 0.2, track: 0.25, via: 0.6, drill: 0.3 } },
+      { kind: 'track', line: 10, net: 'VCC', layer: 'F', width: 0.4, points: [[10, 10], [20, 10], [20, 15]] },
+      { kind: 'via', line: 11, net: 'VCC', at: [20, 15], size: 0.8, drill: 0.4 },
+    ]);
+
+    const bad = `cnl 1
+[pcb]
+board 0x40
+rules bogus=1
+track VCC Z 0.4 0,0 1,1
+via VCC 1,2 nope=3
+-tracks VCC
+`;
+    let caught: unknown;
+    try { parseCnl(bad); } catch (e) { caught = e; }
+    expect(caught).toBeInstanceOf(CadErrors);
+    expect((caught as CadErrors).errors).toHaveLength(5);
   });
 });

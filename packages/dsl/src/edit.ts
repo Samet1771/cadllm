@@ -63,6 +63,45 @@ function execStatement(tx: Tx, stmt: CnlEditStmt, recordMetaNotes: boolean): voi
       tx.rename(stmt.from, stmt.to);
       return;
     }
+    case 'board': {
+      const prev = JSON.stringify(tx.circuit.pcb?.board ?? null);
+      tx.setBoard(stmt.outline);
+      if (recordMetaNotes && JSON.stringify(tx.circuit.pcb?.board ?? null) !== prev) {
+        tx.notes.push('pcb board');
+      }
+      return;
+    }
+    case 'rules': {
+      const prev = JSON.stringify(tx.circuit.pcb?.rules ?? null);
+      tx.setPcbRules(stmt.rules);
+      if (recordMetaNotes && JSON.stringify(tx.circuit.pcb?.rules ?? null) !== prev) {
+        tx.notes.push('pcb rules');
+      }
+      return;
+    }
+    case 'track': {
+      tx.addTrack({ net: stmt.net, layer: stmt.layer, width: stmt.width, points: stmt.points });
+      return;
+    }
+    case 'via': {
+      tx.addVia({
+        net: stmt.net,
+        at: stmt.at,
+        ...(stmt.size !== undefined ? { size: stmt.size } : {}),
+        ...(stmt.drill !== undefined ? { drill: stmt.drill } : {}),
+      });
+      return;
+    }
+    case 'remove_tracks': {
+      if (stmt.net === '*') {
+        const had = (tx.circuit.pcb?.tracks.length ?? 0) + (tx.circuit.pcb?.vias.length ?? 0) > 0;
+        tx.removePcbCopper();
+        if (recordMetaNotes && had) tx.notes.push('pcb -tracks *');
+      } else {
+        tx.removePcbCopper(stmt.net);
+      }
+      return;
+    }
     case 'remove': {
       if (tx.component(stmt.target)) { tx.removeComponent(stmt.target); return; }
       if (tx.net(stmt.target)) { tx.removeNet(stmt.target); return; }
@@ -184,6 +223,14 @@ export function loadCircuit(text: string, parts: PartResolver): Doc {
         } catch (err) {
           errors.push(wrapLineError(entry.line, err));
         }
+      }
+    }
+
+    for (const stmt of parsed.pcbStmts) {
+      try {
+        execStatement(tx, stmt, false);
+      } catch (err) {
+        errors.push(wrapLineError(stmt.line, err));
       }
     }
 

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Query, emptyCircuit, type PartDef } from '@cadllm/core';
+import { Query, emptyCircuit, type PartDef, type PcbLayer } from '@cadllm/core';
+import type { DrcIssue, PcbRenderLayer } from '@cadllm/pcb';
 import { UNIT, bbHoleAt, type Pt, type ViewId } from '@cadllm/views';
-import { BottomPanel } from './components/BottomPanel.tsx';
-import { CanvasView } from './components/CanvasView.tsx';
-import { Inspector } from './components/Inspector.tsx';
+import { BottomPanel, type BottomTab } from './components/BottomPanel.tsx';
+import { CanvasView, type PcbFocusTarget } from './components/CanvasView.tsx';
+import { Inspector, type SelectedTrackInfo } from './components/Inspector.tsx';
 import { PartPicker } from './components/PartPicker.tsx';
 import { ToastContainer } from './components/ToastContainer.tsx';
 import { TopBar } from './components/TopBar.tsx';
@@ -20,6 +21,16 @@ import {
   stripReadHeader,
   type FindHit,
 } from './lib/parts.ts';
+import {
+  DEFAULT_PCB_LAYERS,
+  boundsForDrcTargets,
+  flipPcbPlace,
+  rotatePcbPlace,
+  snapMm,
+  type PcbLayerVisibility,
+} from './lib/pcb.ts';
+import { checkPcbDrc, resolvePcbPads } from './lib/pcbFallback.ts';
+import { buildPcbPlaceEdit, buildRemoveTracksCnl } from './lib/pcbRoute.ts';
 import {
   buildConnectCnl,
   formatPlaceEdit,
@@ -68,7 +79,14 @@ export function App() {
   const [libraryParts, setLibraryParts] = useState<PartDef[]>([]);
   const [activeView, setActiveView] = useState<ViewId>('sch');
   const [selectedRef, setSelectedRef] = useState<string | undefined>(undefined);
+  const [selectedTrack, setSelectedTrack] = useState<SelectedTrackInfo | undefined>(undefined);
   const [highlight, setHighlight] = useState<string[]>([]);
+  const [pcbLayers, setPcbLayers] = useState<PcbLayerVisibility>(DEFAULT_PCB_LAYERS);
+  const [activePcbLayer, setActivePcbLayer] = useState<PcbLayer>('F');
+  const [bottomTab, setBottomTab] = useState<BottomTab>('console');
+  const [exportedPath, setExportedPath] = useState<string | undefined>(undefined);
+  const [pcbBusy, setPcbBusy] = useState<string | undefined>(undefined);
+  const [focusTarget, setFocusTarget] = useState<PcbFocusTarget | undefined>(undefined);
 
   const [themePref, setThemePref] = useState<ThemePreference>('system');
   const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -138,6 +156,15 @@ export function App() {
   const mcuRefs = useMemo(() => findMcuRefs(query), [query]);
   const buttonRefs = useMemo(() => findButtonRefs(query), [query]);
   const defaultProbes = useMemo(() => defaultProbesForQuery(query), [query]);
+  const drcResult = useMemo(() => checkPcbDrc(query, isDemo), [query, isDemo]);
+  const drcCount = useMemo(() => {
+    const errors = drcResult.issues.filter(i => i.level === 'error').length;
+    return {
+      errors,
+      warns: drcResult.issues.length - errors,
+      pending: drcResult.pending,
+    };
+  }, [drcResult]);
 
   const activeMcuRef = useMemo(() => {
     if (mcuRefs.length === 0) return undefined;
@@ -416,14 +443,41 @@ export function App() {
   const handleRotate = useCallback((ref: string) => {
     const comp = query.component(ref);
     if (!comp) return;
+    if (activeView === 'pcb') {
+      const center = viewportCenterRef.current;
+      const next = rotatePcbPlace(comp.place.pcb, 90, [snapMm(center.x, 0.5), snapMm(center.y, 0.5)]);
+      void runMutation('edit', { cnl: buildPcbPlaceEdit(comp.ref, next) });
+      return;
+    }
     const next = rotateSchPlace(comp.place.sch, 90);
     void runMutation('edit', { cnl: formatPlaceEdit(comp.ref, 'sch', next) });
+  }, [activeView, query, runMutation]);
+
+  const handleFlipPcb = useCallback((ref: string) => {
+    const comp = query.component(ref);
+    if (!comp) return;
+    const center = viewportCenterRef.current;
+    const next = flipPcbPlace(comp.place.pcb, [snapMm(center.x, 0.5), snapMm(center.y, 0.5)]);
+    void runMutation('edit', { cnl: buildPcbPlaceEdit(comp.ref, next) });
   }, [query, runMutation]);
 
   const handleDelete = useCallback((ref: string) => {
     void runMutation('edit', { cnl: `-${ref}` }).then(res => {
       if (res !== undefined) setSelectedRef(undefined);
     });
+  }, [runMutation]);
+
+  const handleDeleteSelectedTrack = useCallback(() => {
+    if (!selectedTrack) return;
+    if (!window.confirm(`Remove all PCB copper (tracks & vias) for net ${selectedTrack.netName}?`)) return;
+    const cnl = buildRemoveTracksCnl(selectedTrack.netName);
+    void runMutation('edit', { cnl }).then(res => {
+      if (res !== undefined) setSelectedTrack(undefined);
+    });
+  }, [runMutation, selectedTrack]);
+
+  const handleCommitPcbRoute = useCallback((editCnl: string) => {
+    void runMutation('edit', { cnl: editCnl });
   }, [runMutation]);
 
   const handleAddPart = useCallback((hit: FindHit) => {
@@ -433,6 +487,8 @@ export function App() {
     let placeToken = '';
     if (activeView === 'sch') {
       placeToken = ` @sch:${center.x},${center.y}`;
+    } else if (activeView === 'pcb') {
+      placeToken = ` @pcb:${snapMm(center.x, 0.5)},${snapMm(center.y, 0.5)}`;
     } else {
       try {
         const hole = bbHoleAt(query, { x: center.x * UNIT, y: center.y * UNIT });
@@ -442,7 +498,10 @@ export function App() {
       }
     }
     void runMutation('edit', { cnl: `${ref} ${hit.id}${placeToken}` }).then(res => {
-      if (res !== undefined) setSelectedRef(ref);
+      if (res !== undefined) {
+        setSelectedTrack(undefined);
+        setSelectedRef(ref);
+      }
     });
   }, [activeView, query, runMutation]);
 
@@ -490,12 +549,13 @@ export function App() {
     void runMutation('history', { op: 'redo' }, true);
   }, [runMutation]);
 
-  const handleAutoLayout = useCallback(async () => {
+  const runLayoutCmd = useCallback(async (params: Record<string, unknown>, busyKey?: string) => {
     const rpc = rpcRef.current;
     if (!rpc) return;
+    if (busyKey) setPcbBusy(busyKey);
     ownTrackerRef.current.beginMutation();
     try {
-      const res = await rpc.call<string>('layout', { view: activeView });
+      const res = await rpc.call<string>('layout', params);
       const rev = parseRevFromText(res);
       const buffered = ownTrackerRef.current.endMutation(rev);
       if (buffered.length > 0) triggerExternalHighlight(buffered);
@@ -507,8 +567,85 @@ export function App() {
       const msg = err instanceof Error ? err.message : String(err);
       pushToast(msg, 'ui');
       pushActivity(msg, 'ui', undefined, 'error');
+    } finally {
+      if (busyKey) setPcbBusy(undefined);
     }
-  }, [activeView, pushActivity, pushToast, refreshWorkspace, triggerExternalHighlight]);
+  }, [pushActivity, pushToast, refreshWorkspace, triggerExternalHighlight]);
+
+  const handleAutoLayout = useCallback(async () => {
+    await runLayoutCmd({ view: activeView });
+  }, [activeView, runLayoutCmd]);
+
+  const handleAutoPlacePcb = useCallback(() => {
+    void runLayoutCmd({ view: 'pcb' }, 'autoplace');
+  }, [runLayoutCmd]);
+
+  const handleAutoroutePcb = useCallback(() => {
+    void runLayoutCmd({ view: 'pcb', op: 'route' }, 'route');
+  }, [runLayoutCmd]);
+
+  const handleExportFab = useCallback(async () => {
+    const rpc = rpcRef.current;
+    if (!rpc) return;
+    setPcbBusy('export');
+    try {
+      const res = await rpc.call<string>('export', { format: 'fab' });
+      const firstLine = res.split(/\r?\n/)[0]?.trim() || res.trim();
+      setExportedPath(firstLine);
+      pushToast(`Exported fab: ${firstLine}`, 'ui');
+      pushActivity(res.replace(/\r?\n/g, ' · '), 'ui', undefined, 'info');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      pushToast(msg, 'ui');
+      pushActivity(msg, 'ui', undefined, 'error');
+    } finally {
+      setPcbBusy(undefined);
+    }
+  }, [pushActivity, pushToast]);
+
+  const handleTogglePcbLayer = useCallback((layer: PcbRenderLayer) => {
+    setPcbLayers(prev => ({ ...prev, [layer]: !prev[layer] }));
+  }, []);
+
+  const handleFocusDrcIssue = useCallback((issue: DrcIssue) => {
+    setActiveView('pcb');
+    const hl: string[] = [];
+    let firstRef: string | undefined;
+    for (const raw of issue.at) {
+      const tok = raw.trim();
+      if (!tok) continue;
+      const refCandidate = tok.includes('.') ? tok.slice(0, tok.indexOf('.')) : tok;
+      const comp = query.component(refCandidate);
+      if (comp) {
+        if (!firstRef) firstRef = comp.ref;
+        hl.push(comp.ref);
+        continue;
+      }
+      const netName = tok.toLowerCase().startsWith('net:') ? tok.slice(4) : tok;
+      const net = query.net(netName);
+      if (net) {
+        hl.push(`net:${net.name}`);
+      } else {
+        hl.push(tok);
+      }
+    }
+
+    setSelectedTrack(undefined);
+    setSelectedRef(firstRef);
+    if (hl.length > 0) {
+      setHighlight([...new Set(hl)]);
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+      highlightTimerRef.current = setTimeout(() => {
+        setHighlight([]);
+        highlightTimerRef.current = null;
+      }, 4000);
+    }
+
+    const box = boundsForDrcTargets(query, resolvePcbPads(query, isDemo), issue.at);
+    if (box) {
+      setFocusTarget({ seq: nextIdRef.current++, box });
+    }
+  }, [isDemo, query]);
 
   const handleProjectCmd = useCallback(async (params: Record<string, unknown>) => {
     const rpc = rpcRef.current;
@@ -517,6 +654,8 @@ export function App() {
       const res = await rpc.call<string>('project', params);
       pushActivity(res, 'ui', parseRevFromText(res), 'info');
       setSelectedRef(undefined);
+      setSelectedTrack(undefined);
+      setExportedPath(undefined);
       setSimTrace(null);
       setIsPlaying(false);
       setPlayTime(0);
@@ -580,7 +719,7 @@ export function App() {
     }
   }, []);
 
-  // Global keyboard shortcuts (R rotate, Del remove, Ctrl+Z/Y undo/redo).
+  // Global keyboard shortcuts (R rotate, F flip, Del remove, Ctrl+Z/Y undo/redo).
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target;
@@ -605,14 +744,24 @@ export function App() {
         return;
       }
       if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'r') {
-        if (activeView === 'sch' && selectedRef) {
+        if ((activeView === 'sch' || activeView === 'pcb') && selectedRef) {
           e.preventDefault();
           handleRotate(selectedRef);
         }
         return;
       }
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'f') {
+        if (activeView === 'pcb' && selectedRef) {
+          e.preventDefault();
+          handleFlipPcb(selectedRef);
+        }
+        return;
+      }
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedRef) {
+        if (activeView === 'pcb' && selectedTrack) {
+          e.preventDefault();
+          handleDeleteSelectedTrack();
+        } else if (selectedRef) {
           e.preventDefault();
           handleDelete(selectedRef);
         }
@@ -620,7 +769,7 @@ export function App() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [activeView, handleDelete, handleRedo, handleRotate, handleUndo, selectedRef]);
+  }, [activeView, handleDelete, handleDeleteSelectedTrack, handleFlipPcb, handleRedo, handleRotate, handleUndo, selectedRef, selectedTrack]);
 
   return (
     <div className="app-shell">
@@ -661,14 +810,34 @@ export function App() {
           query={query}
           activeView={activeView}
           theme={effectiveTheme}
+          isDemo={isDemo}
           selectedRef={selectedRef}
+          selectedTrack={selectedTrack}
           highlight={highlight}
           simState={simState}
           pressMode={pressMode}
+          pcbLayers={pcbLayers}
+          activePcbLayer={activePcbLayer}
+          drcCount={drcCount}
+          exportedPath={exportedPath}
+          pcbBusy={pcbBusy}
+          focusTarget={focusTarget}
           onViewChange={setActiveView}
           onSelectRef={setSelectedRef}
+          onSelectTrack={setSelectedTrack}
           onMovePart={handleMovePart}
           onConnectPins={handleConnectPins}
+          onCommitPcbRoute={handleCommitPcbRoute}
+          onTogglePcbLayer={handleTogglePcbLayer}
+          onActivePcbLayerChange={setActivePcbLayer}
+          onAutoPlacePcb={handleAutoPlacePcb}
+          onAutoroutePcb={handleAutoroutePcb}
+          onExportFab={() => void handleExportFab()}
+          onOpenDrcPanel={() => {
+            setBottomTab('drc');
+            void handleRunCheck();
+          }}
+          onClearExportedPath={() => setExportedPath(undefined)}
           onViewportCenterChange={pt => { viewportCenterRef.current = pt; }}
           onNotice={msg => pushToast(msg, 'ui')}
           onPressButton={handleManualPress}
@@ -678,6 +847,7 @@ export function App() {
           query={query}
           activeView={activeView}
           selectedRef={selectedRef}
+          selectedTrack={selectedTrack}
           theme={effectiveTheme}
           cnlText={cnlText}
           cnlDirty={cnlDirty}
@@ -696,13 +866,20 @@ export function App() {
           onSyncCnl={handleSyncCnl}
           onPatchProp={handlePatchProp}
           onRotate={handleRotate}
+          onFlipPcb={handleFlipPcb}
           onDelete={handleDelete}
+          onDeleteSelectedTrack={handleDeleteSelectedTrack}
           onDisconnectPin={handleDisconnectPin}
         />
       </div>
 
       <BottomPanel
+        activeTab={bottomTab}
+        onTabChange={setBottomTab}
         checkOutput={checkOutput}
+        drcIssues={drcResult.issues}
+        drcPending={drcResult.pending}
+        onFocusDrcIssue={handleFocusDrcIssue}
         simOutput={simOutput}
         simRunning={simRunning}
         activity={activity}

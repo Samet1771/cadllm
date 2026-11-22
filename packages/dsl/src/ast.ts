@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
+import type { PcbLayer, PcbRules } from '@cadllm/core';
 
 export type SectionName = 'circuit' | 'breadboard' | 'schematic' | 'pcb' | 'tests' | 'code';
 
@@ -60,8 +61,52 @@ export interface CnlMoveStmt {
   to: string;
 }
 
+export interface CnlBoardStmt {
+  kind: 'board';
+  line: number;
+  outline: [number, number][];
+}
+
+export interface CnlRulesStmt {
+  kind: 'rules';
+  line: number;
+  rules: Partial<PcbRules>;
+}
+
+export interface CnlTrackStmt {
+  kind: 'track';
+  line: number;
+  net: string;
+  layer: PcbLayer;
+  width: number;
+  points: [number, number][];
+}
+
+export interface CnlViaStmt {
+  kind: 'via';
+  line: number;
+  net: string;
+  at: [number, number];
+  size?: number;
+  drill?: number;
+}
+
+export interface CnlRemoveTracksStmt {
+  kind: 'remove_tracks';
+  line: number;
+  net: string;
+}
+
+export type CnlPcbStmt = CnlBoardStmt | CnlRulesStmt | CnlTrackStmt | CnlViaStmt;
 export type CnlCircuitStmt = CnlCompStmt | CnlPlaceStmt | CnlNetStmt | CnlMetaStmt;
-export type CnlEditStmt = CnlCircuitStmt | CnlRemoveStmt | CnlDisconnectStmt | CnlPatchStmt | CnlMoveStmt;
+export type CnlEditStmt =
+  | CnlCircuitStmt
+  | CnlRemoveStmt
+  | CnlDisconnectStmt
+  | CnlPatchStmt
+  | CnlMoveStmt
+  | CnlPcbStmt
+  | CnlRemoveTracksStmt;
 
 export interface CnlSectionPlace {
   line: number;
@@ -142,6 +187,7 @@ export interface CnlDoc {
   breadboard: CnlSectionPlace[];
   schematic: CnlSectionPlace[];
   pcb: CnlSectionPlace[];
+  pcbStmts: CnlPcbStmt[];
   tests: TestBlock[];
   testsText?: string;
   code: Record<string, string>;

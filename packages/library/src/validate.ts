@@ -123,7 +123,7 @@ export function validatePart(p: unknown): string[] {
   if (p.views !== undefined) {
     if (!isObj(p.views)) err.push('views must be an object');
     else for (const [k, v] of Object.entries(p.views)) {
-      if (k !== 'sch' && k !== 'bb') err.push(`views.${k}: unknown view (sch, bb)`);
+      if (k !== 'sch' && k !== 'bb' && k !== 'pcb') err.push(`views.${k}: unknown view (sch, bb, pcb)`);
       else if (!isStr(v)) err.push(`views.${k} must be a non-empty string`);
     }
   }

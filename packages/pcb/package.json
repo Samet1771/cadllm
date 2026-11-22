@@ -1,0 +1,14 @@
+{
+  "name": "@cadllm/pcb",
+  "version": "0.0.0",
+  "private": true,
+  "description": "PCB footprints, placement, routing, DRC, and PCB SVG view (pure, no Node or DOM APIs)",
+  "license": "GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@cadllm/core": "*"
+  }
+}

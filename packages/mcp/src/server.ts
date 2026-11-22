@@ -67,19 +67,29 @@ export const TOOLS = {
     },
   },
   layout: {
-    description: 'Auto-place parts in a view (sch=schematic, bb=breadboard). Wires are derived.',
+    description: 'Auto-place parts in a view (sch/bb/pcb), or route PCB nets (op=route).',
     inputSchema: {
-      view: z.enum(['sch', 'bb']),
+      view: z.enum(['sch', 'bb', 'pcb']),
+      op: z.enum(['place', 'route']).optional().describe('pcb: place (default) or route'),
       refs: z.string().optional().describe('only these, e.g. "R1,D1"'),
-      all: z.boolean().optional().describe('re-place placed parts too'),
+      nets: z.string().optional().describe('nets for op=route'),
+      all: z.boolean().optional().describe('re-place/reroute all'),
     },
   },
   render: {
     description: 'View as a PNG image.',
     inputSchema: {
-      view: z.enum(['sch', 'bb']),
+      view: z.enum(['sch', 'bb', 'pcb']),
       select: z.string().optional().describe('crop to refs: "U1,R2"'),
       width: z.number().int().optional().describe('px, default 800'),
+    },
+  },
+  export: {
+    description: 'Export manufacturing or view files.',
+    inputSchema: {
+      format: z.enum(['gerber', 'drill', 'fab', 'kicad', 'bom', 'pnp', 'svg']),
+      view: z.enum(['sch', 'bb', 'pcb']).optional().describe('for svg'),
+      path: z.string().optional().describe('output file or dir'),
     },
   },
   history: {
@@ -92,7 +102,7 @@ export const TOOLS = {
   },
 } as const;
 
-function renderPng(engine: Engine, a: { view: 'sch' | 'bb'; select?: string; width?: number }): Content[] {
+function renderPng(engine: Engine, a: { view: 'sch' | 'bb' | 'pcb'; select?: string; width?: number }): Content[] {
   const select = a.select?.split(/[\s,]+/).filter(Boolean);
   const svg = engine.renderSvg({ view: a.view, ...(select ? { select } : {}) });
   const width = Math.min(Math.max(a.width ?? 800, 200), 2000);
@@ -115,6 +125,7 @@ export function createServer(engine: Engine, version = '0.0.0'): McpServer {
   server.registerTool('sim', t.sim, a => reply(() => engine.sim(a)));
   server.registerTool('layout', t.layout, a => reply(() => engine.layout(a)));
   server.registerTool('render', t.render, a => reply(() => renderPng(engine, a)));
+  server.registerTool('export', t.export, a => reply(() => engine.export(a)));
   server.registerTool('history', t.history, a => reply(() => engine.history(a)));
   server.registerTool('help', t.help, a => reply(() => engine.help(a)));
   return server;

@@ -144,4 +144,31 @@ describe('applyEdit', () => {
     expect(JSON.stringify(doc.toJSON())).toBe(beforeJson);
     expect(doc.read.component('R2')).toBeUndefined();
   });
+
+  it('supports PCB board, rules, track, via, and -tracks edits', () => {
+    const doc = new Doc(lib);
+    doc.transact(tx => applyEdit(tx, `
+      BAT1 battery 5V
+      R1 res 330
+      VCC: BAT1.+ R1.1
+      GND: BAT1.- R1.2
+      board 50x40
+      rules clearance=0.2 track=0.25 via=0.6 drill=0.3
+      track VCC F 0.4 10,10 20,10 20,15
+      via VCC 20,15
+      track GND B 0.3 5,5 15,5
+    `));
+    expect(doc.read.circuit.pcb?.board?.outline).toEqual([[0, 0], [50, 0], [50, 40], [0, 40]]);
+    expect(doc.read.circuit.pcb?.tracks).toHaveLength(2);
+    expect(doc.read.circuit.pcb?.vias).toHaveLength(1);
+
+    const i1 = doc.transact(tx => applyEdit(tx, '-tracks VCC'));
+    expect(i1.delta.pcbNets).toEqual(['VCC']);
+    expect(doc.read.circuit.pcb?.tracks).toHaveLength(1);
+    expect(doc.read.circuit.pcb?.vias).toHaveLength(0);
+
+    const i2 = doc.transact(tx => applyEdit(tx, '-tracks *'));
+    expect(i2.delta.pcbNets).toEqual(['GND']);
+    expect(doc.read.circuit.pcb?.tracks).toHaveLength(0);
+  });
 });

@@ -1,0 +1,39 @@
+{
+  "id": "header_1x03",
+  "name": "Pin Header 1x3",
+  "summary": "3-pin 2.54mm single-row header",
+  "category": "connector",
+  "refPrefix": "J",
+  "pins": [
+    {
+      "id": "1",
+      "name": "1",
+      "type": "passive"
+    },
+    {
+      "id": "2",
+      "name": "2",
+      "type": "passive"
+    },
+    {
+      "id": "3",
+      "name": "3",
+      "type": "passive"
+    }
+  ],
+  "footprints": [
+    "Header_1x03_P2.54mm"
+  ],
+  "views": {
+    "sch": "ic",
+    "bb": "none"
+  },
+  "keywords": [
+    "header",
+    "connector",
+    "pin",
+    "2.54mm",
+    "1x3",
+    "jumper"
+  ]
+}

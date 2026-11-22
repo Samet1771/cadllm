@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, extname, isAbsolute, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, extname, isAbsolute, resolve } from 'node:path';
 import { basicChecks, CadError, Doc, naturalCompare, type ChangeSource, type Delta, type PartDef, type TxInfo } from '@cadllm/core';
 import { applyEdit, codeMetaKey, loadCircuit, printCircuit, printDelta, saveCnl, TESTS_META_KEY } from '@cadllm/dsl';
+import { bom, excellon, fabZip, gerbers, kicadPcb, pickAndPlace } from '@cadllm/export';
 import type { Library } from '@cadllm/library';
+import { isPcbPart, route as routePcb } from '@cadllm/pcb';
 import { view, viewChecks, type RenderOptions } from '@cadllm/views';
 import { help } from './help.ts';
 import { parseTests, runAdhoc, runFileTests } from './sim.ts';
@@ -228,7 +230,7 @@ export class Engine {
 
   /** New issues worth showing after an edit: all errors, warnings only for touched items. */
   private issueTail(p: Project, d: Delta): string {
-    const touched = new Set([...d.added, ...d.changed, ...d.renamed.map(r => r[1]), ...d.netsAdded, ...d.netsChanged].map(s => s.toUpperCase()));
+    const touched = new Set([...d.added, ...d.changed, ...d.renamed.map(r => r[1]), ...d.netsAdded, ...d.netsChanged, ...d.pcbNets].map(s => s.toUpperCase()));
     const issues = allIssues(p);
     const shown = issues.filter(i => i.level === 'error' || i.at.some(a => touched.has(a.split('.')[0]!.toUpperCase())));
     const errs = issues.filter(i => i.level === 'error').length;
@@ -265,9 +267,26 @@ export class Engine {
 
   // ---- views ----
 
-  /** Auto-place unplaced (or all / the given) components in a view, as one undoable edit. */
-  layout(args: { view: string; refs?: string; all?: boolean }): string {
+  /** Auto-place unplaced (or all / the given) components in a view, or autoroute PCB nets (op=route). */
+  layout(args: { view: string; op?: 'place' | 'route'; refs?: string; nets?: string; all?: boolean }): string {
     const p = this.current;
+    if (args.op === 'route') {
+      if (args.view !== 'pcb') throw new CadError('invalid', 'op=route is only supported for view=pcb');
+      const nets = args.nets?.split(/[\s,]+/).filter(Boolean);
+      const r = routePcb(p.doc.read, { ...(nets?.length ? { nets } : {}), ...(args.all ? { reroute: true } : {}) });
+      const info = p.doc.transact(tx => {
+        if (args.all) {
+          if (nets?.length) for (const n of nets) tx.removePcbCopper(n);
+          else tx.removePcbCopper();
+        }
+        const pcbData = tx.ensurePcb();
+        pcbData.tracks.push(...r.tracks);
+        pcbData.vias.push(...r.vias);
+      }, { label: 'route pcb', source: this.source });
+      const unrouted = r.unrouted.length ? ` · ${r.unrouted.length} unrouted: ${r.unrouted.join(' ')}` : '';
+      const notes = r.notes.length ? ` · ${r.notes.join(' · ')}` : '';
+      return `ok rev=${info.rev} routed ${r.tracks.length} tracks, ${r.vias.length} vias${unrouted}${notes}`;
+    }
     const v = this.view(args.view);
     const refs = args.refs?.split(/[\s,]+/).filter(Boolean);
     const r = v.autoPlace(p.doc.read, { ...(refs ? { refs } : {}), ...(args.all ? { all: true } : {}) });
@@ -296,8 +315,14 @@ export class Engine {
     const p = this.current;
     const v = this.view(viewId);
     const comps = p.doc.read.components();
-    const placed = comps.filter(c => c.place[v.id] !== undefined && p.doc.read.parts.get(c.part)?.views?.[v.id] !== 'none');
-    const hidden = comps.filter(c => p.doc.read.parts.get(c.part)?.views?.[v.id] === 'none').length;
+    const isHidden = (partId: string): boolean => {
+      const part = p.doc.read.parts.get(partId);
+      if (!part) return false;
+      if (part.views?.[v.id] === 'none') return true;
+      return v.id === 'pcb' && !isPcbPart(part);
+    };
+    const placed = comps.filter(c => c.place[v.id] !== undefined && !isHidden(c.part));
+    const hidden = comps.filter(c => isHidden(c.part)).length;
     const unplaced = comps.length - placed.length - hidden;
     return `${this.tag(p)} ${v.id}: ${placed.length} parts drawn${unplaced ? ` · ${unplaced} unplaced (layout view=${v.id})` : ''}`;
   }
@@ -306,8 +331,106 @@ export class Engine {
     try {
       return view(id);
     } catch {
-      throw new CadError('invalid', `unknown view ${id}`, 'views: sch bb');
+      throw new CadError('invalid', `unknown view ${id}`, 'views: sch bb pcb');
     }
+  }
+
+  // ---- export ----
+
+  export(args: { format: 'gerber' | 'drill' | 'fab' | 'kicad' | 'bom' | 'pnp' | 'svg'; view?: 'sch' | 'bb' | 'pcb'; path?: string }): string {
+    const p = this.current;
+    const q = p.doc.read;
+    const baseDir = p.path ? dirname(p.path) : this.root;
+
+    const resolveOutDir = (): string => {
+      if (!args.path) return resolve(baseDir, `${p.name}-${args.format}`);
+      return isAbsolute(args.path) ? args.path : resolve(baseDir, args.path);
+    };
+
+    const resolveOutFile = (defaultName: string): string => {
+      if (!args.path) return resolve(baseDir, defaultName);
+      const full = isAbsolute(args.path) ? args.path : resolve(baseDir, args.path);
+      if (
+        args.path.endsWith('/')
+        || args.path.endsWith('\\')
+        || (existsSync(full) && statSync(full).isDirectory())
+        || extname(full).toLowerCase() !== extname(defaultName).toLowerCase()
+      ) {
+        return resolve(full, defaultName);
+      }
+      return full;
+    };
+
+    const pcbParts = q.components().filter(c => {
+      const pt = q.parts.get(c.part);
+      return pt !== undefined && isPcbPart(pt);
+    });
+    const placedParts = pcbParts.filter(c => c.place.pcb !== undefined);
+    const padCount = placedParts.reduce((n, c) => n + (q.parts.get(c.part)?.pins.length ?? 0), 0);
+    const trackCount = q.circuit.pcb?.tracks.length ?? 0;
+    const viaCount = q.circuit.pcb?.vias.length ?? 0;
+    const statsTail = `${padCount} ${padCount === 1 ? 'pad' : 'pads'} ${trackCount} ${trackCount === 1 ? 'track' : 'tracks'} ${viaCount} ${viaCount === 1 ? 'via' : 'vias'}`;
+
+    if (args.format === 'gerber' || args.format === 'drill') {
+      const files = args.format === 'gerber' ? gerbers(q) : excellon(q);
+      const dir = resolveOutDir();
+      mkdirSync(dir, { recursive: true });
+      const paths: string[] = [];
+      for (const [name, content] of Object.entries(files).sort(([a], [b]) => a.localeCompare(b))) {
+        const out = resolve(dir, name);
+        writeFileSync(out, content, 'utf8');
+        paths.push(out);
+      }
+      const kindLabel = args.format === 'gerber' ? `${paths.length} gerbers` : `${paths.length} drill`;
+      return `${paths.join('\n')}\nok ${args.format} ${dir} · ${kindLabel} · ${statsTail}`;
+    }
+
+    let defaultName: string;
+    let data: string | Uint8Array;
+    let summary: string;
+    switch (args.format) {
+      case 'fab':
+        defaultName = `${p.name}-fab.zip`;
+        data = fabZip(q);
+        summary = `7 gerbers 2 drill · ${statsTail}`;
+        break;
+      case 'kicad':
+        defaultName = `${p.name}.kicad_pcb`;
+        data = kicadPcb(q);
+        summary = `${placedParts.length} ${placedParts.length === 1 ? 'part' : 'parts'} · ${statsTail}`;
+        break;
+      case 'bom': {
+        defaultName = `${p.name}-bom.csv`;
+        const csv = bom(q);
+        data = csv;
+        const rows = Math.max(0, csv.trim().split('\n').length - 1);
+        summary = `${rows} ${rows === 1 ? 'group' : 'groups'} · ${pcbParts.length} ${pcbParts.length === 1 ? 'part' : 'parts'}`;
+        break;
+      }
+      case 'pnp': {
+        defaultName = `${p.name}-pnp.csv`;
+        const csv = pickAndPlace(q);
+        data = csv;
+        const rows = Math.max(0, csv.trim().split('\n').length - 1);
+        summary = `${rows} placed ${rows === 1 ? 'part' : 'parts'}`;
+        break;
+      }
+      case 'svg': {
+        const viewId = args.view ?? 'sch';
+        defaultName = `${p.name}-${viewId}.svg`;
+        data = this.renderSvg({ view: viewId });
+        summary = `${Buffer.byteLength(data, 'utf8')} bytes`;
+        break;
+      }
+    }
+
+    const out = resolveOutFile(defaultName);
+    mkdirSync(dirname(out), { recursive: true });
+    writeFileSync(out, data);
+    if (args.format === 'svg') {
+      return `${out}\nok exported svg ${out} (${summary})`;
+    }
+    return `${out}\nok ${args.format} ${out} · ${summary}`;
   }
 
   // ---- check / sim ----

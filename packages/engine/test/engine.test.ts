@@ -196,7 +196,41 @@ describe('views', () => {
     expect(e.renderSvg({ view: 'bb', highlight: ['R1'] })).toContain('data-ref="R1"');
     expect(e.renderSummary('bb')).toBe('nand-led rev=2 bb: 6 parts drawn');
     expect(e.history({ op: 'undo' })).toMatch(/^ok rev=3 ~BAT1 ~D1/);
-    expect(err(() => e.layout({ view: 'pcb' }))).toBe('unknown view pcb · views: sch bb');
+    expect(err(() => e.layout({ view: 'nope' }))).toBe('unknown view nope · views: sch bb pcb');
+  });
+
+  it('routes PCB layout, render, check, and export tools cleanly', () => {
+    const e = engine();
+    e.project({ op: 'open', path: 'examples/led-pcb.cnl' });
+    expect(e.edit({ cnl: 'track VCC F 0.4 5,6 14,10' })).toMatch(/^ok rev=1 pcb: ~VCC/);
+    expect(e.layout({ view: 'pcb' })).toMatch(/nothing to place in pcb/);
+    expect(e.layout({ view: 'pcb', op: 'route' })).toMatch(/^ok rev=\d+ routed /);
+    expect(err(() => e.layout({ view: 'sch', op: 'route' }))).toMatch(/only supported for view=pcb/);
+    expect(e.renderSvg({ view: 'pcb' })).toMatch(/^<svg [^>]*data-view="pcb"/);
+    expect(e.check()).toMatch(/^led-pcb rev=2 /);
+
+    const outDir = mkdtempSync(join(tmpdir(), 'cadllm-exp-'));
+    const gbrDir = join(outDir, 'gbr');
+    const drlDir = join(outDir, 'drl');
+    const fabDir = join(outDir, 'fab');
+    const fabZipPath = join(fabDir, 'led-pcb-fab.zip');
+    const bomPath = join(outDir, 'led-pcb-bom.csv');
+    const pnpPath = join(outDir, 'led-pcb-pnp.csv');
+    const kicadPath = join(outDir, 'led-pcb.kicad_pcb');
+    expect(e.export({ format: 'gerber', path: gbrDir })).toContain(`ok gerber ${gbrDir} · 7 gerbers · 8 pads `);
+    expect(e.export({ format: 'drill', path: drlDir })).toContain(`ok drill ${drlDir} · 2 drill · 8 pads `);
+    const fabOut = e.export({ format: 'fab', path: fabDir });
+    expect(fabOut.split('\n')[0]).toBe(fabZipPath);
+    expect(fabOut).toContain(`ok fab ${fabZipPath} · 7 gerbers 2 drill · 8 pads `);
+    expect(e.export({ format: 'bom', path: bomPath })).toContain(`ok bom ${bomPath} · 4 groups · 4 parts`);
+    expect(e.export({ format: 'pnp', path: pnpPath })).toContain(`ok pnp ${pnpPath} · 4 placed parts`);
+    expect(e.export({ format: 'kicad', path: kicadPath })).toContain(`ok kicad ${kicadPath} · 4 parts · 8 pads `);
+
+    e.layout({ view: 'sch' });
+    const svgPath = join(outDir, 'led.svg');
+    const svgOut = e.export({ format: 'svg', view: 'sch', path: svgPath });
+    expect(svgOut).toContain(`ok exported svg ${svgPath}`);
+    expect(readFileSync(svgPath, 'utf8')).toContain('<svg ');
   });
 
   it('reports breadboard shorts in check and in the edit tail', () => {

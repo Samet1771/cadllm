@@ -44,7 +44,7 @@ export interface PartDef {
   sim?: SimModelRef[];
   footprints?: string[];
   /** Drawing family per view, resolved by @cadllm/views: { sch: "resistor", bb: "axial" }. "none" = not drawn in that view. */
-  views?: { sch?: string; bb?: string };
+  views?: { sch?: string; bb?: string; pcb?: string };
   keywords?: string[];
   /** Source of the pinout, required for ICs and transistors. */
   datasheet?: string;
@@ -74,12 +74,50 @@ export interface Net {
   pins: PinKey[];
 }
 
+export type PcbLayer = 'F' | 'B';
+
+export interface PcbBoard {
+  /** Board outline polygon in mm (clockwise or counter-clockwise). */
+  outline: [x: number, y: number][];
+}
+
+export interface PcbRules {
+  clearance: number;
+  track: number;
+  via: number;
+  drill: number;
+}
+
+export interface PcbTrack {
+  /** Stable net id (see Net.id). */
+  net: string;
+  layer: PcbLayer;
+  width: number;
+  points: [x: number, y: number][];
+}
+
+export interface PcbVia {
+  /** Stable net id (see Net.id). */
+  net: string;
+  at: [x: number, y: number];
+  size: number;
+  drill: number;
+}
+
+export interface PcbData {
+  board?: PcbBoard;
+  rules?: PcbRules;
+  tracks: PcbTrack[];
+  vias: PcbVia[];
+}
+
 export interface Circuit {
   meta: Record<string, string>;
   /** Id sequence counter, persisted so ids stay deterministic across save/load. */
   seq: number;
   components: Record<string, Component>;
   nets: Record<string, Net>;
+  pcb?: PcbData;
 }
 
 export type ChangeSource = 'ai' | 'user' | 'plugin' | 'system';
@@ -93,6 +131,7 @@ export interface Delta {
   netsRemoved: string[];
   netsChanged: string[];
   netsRenamed: [from: string, to: string][];
+  pcbNets: string[];
 }
 
 export interface TxInfo {

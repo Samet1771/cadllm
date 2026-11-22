@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
-import { CadError, CadErrors, parseSI } from '@cadllm/core';
+import { CadError, CadErrors, parseSI, type PcbLayer, type PcbRules } from '@cadllm/core';
 import type {
   CnlCircuitStmt,
   CnlDoc,
   CnlEditStmt,
+  CnlPcbStmt,
   CnlSectionPlace,
   CompareOp,
   ExpectCompare,
@@ -35,6 +36,157 @@ const CODE_SECTION_END_RE = /^\[(circuit|breadboard|schematic|pcb|tests|code\s+\
 
 const errAt = (line: number, message: string, hint?: string) =>
   new CadError('invalid', `line ${line}: ${message}`, hint);
+
+const PCB_RULE_KEYS = new Set(['clearance', 'track', 'via', 'drill']);
+const PCB_KEYWORDS = new Set(['board', 'rules', 'track', 'via']);
+
+function parseMm(raw: string): number | undefined {
+  const s = raw.trim().replace(/mm$/i, '');
+  if (!s) return undefined;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function parsePoint(raw: string, line: number, errors: CadError[]): [number, number] | undefined {
+  const parts = raw.split(',');
+  if (parts.length !== 2) {
+    errors.push(errAt(line, `bad point "${raw}"`, 'use x,y in mm, e.g. 10,20'));
+    return undefined;
+  }
+  const x = parseMm(parts[0]!);
+  const y = parseMm(parts[1]!);
+  if (x === undefined || y === undefined) {
+    errors.push(errAt(line, `bad point coordinates "${raw}"`, 'use numeric x,y in mm'));
+    return undefined;
+  }
+  return [x, y];
+}
+
+function parsePcbStatement(tokens: Token[], line: number, errors: CadError[]): CnlPcbStmt | undefined {
+  const head = tokens[0]!.text;
+  if (head === 'board') {
+    if (tokens.length < 2) {
+      errors.push(errAt(line, 'board requires dimensions or polygon points', 'e.g. board 50x40 or board 0,0 50,0 50,40 0,40'));
+      return undefined;
+    }
+    if (tokens.length === 2) {
+      const rect = tokens[1]!.text.match(/^([+-]?(?:\d+\.?\d*|\.\d+))x([+-]?(?:\d+\.?\d*|\.\d+))$/i);
+      if (rect) {
+        const w = Number(rect[1]);
+        const h = Number(rect[2]);
+        if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+          errors.push(errAt(line, `board dimensions "${tokens[1]!.text}" must be positive`));
+          return undefined;
+        }
+        return { kind: 'board', line, outline: [[0, 0], [w, 0], [w, h], [0, h]] };
+      }
+    }
+    const outline: [number, number][] = [];
+    for (let i = 1; i < tokens.length; i++) {
+      const pt = parsePoint(tokens[i]!.text, line, errors);
+      if (!pt) return undefined;
+      outline.push(pt);
+    }
+    if (outline.length < 3) {
+      errors.push(errAt(line, 'board outline needs at least 3 points (or WxH)'));
+      return undefined;
+    }
+    return { kind: 'board', line, outline };
+  }
+
+  if (head === 'rules') {
+    if (tokens.length < 2) {
+      errors.push(errAt(line, 'rules requires at least one key=value', 'keys: clearance track via drill'));
+      return undefined;
+    }
+    const rules: Partial<PcbRules> = {};
+    for (let i = 1; i < tokens.length; i++) {
+      const tok = tokens[i]!;
+      if (tok.eqIndex <= 0) {
+        errors.push(errAt(line, `bad rule "${tok.text}"`, 'use clearance=0.2 track=0.25 via=0.6 drill=0.3'));
+        return undefined;
+      }
+      const k = tok.text.slice(0, tok.eqIndex);
+      if (!PCB_RULE_KEYS.has(k)) {
+        errors.push(errAt(line, `unknown pcb rule "${k}"`, 'valid: clearance track via drill'));
+        return undefined;
+      }
+      const v = parseMm(tok.text.slice(tok.eqIndex + 1));
+      if (v === undefined || v <= 0) {
+        errors.push(errAt(line, `invalid value in "${tok.text}"`, 'must be a positive number in mm'));
+        return undefined;
+      }
+      rules[k as keyof PcbRules] = v;
+    }
+    return { kind: 'rules', line, rules };
+  }
+
+  if (head === 'track') {
+    if (tokens.length < 6) {
+      errors.push(errAt(line, 'track requires net, layer, width, and at least 2 points', 'e.g. track VCC F 0.4 10,10 20,10'));
+      return undefined;
+    }
+    const net = tokens[1]!.text;
+    const rawLayer = tokens[2]!.text.toUpperCase();
+    if (rawLayer !== 'F' && rawLayer !== 'B') {
+      errors.push(errAt(line, `bad track layer "${tokens[2]!.text}"`, 'use F or B'));
+      return undefined;
+    }
+    const width = parseMm(tokens[3]!.text);
+    if (width === undefined || width <= 0) {
+      errors.push(errAt(line, `bad track width "${tokens[3]!.text}"`, 'must be a positive number in mm'));
+      return undefined;
+    }
+    const points: [number, number][] = [];
+    for (let i = 4; i < tokens.length; i++) {
+      const pt = parsePoint(tokens[i]!.text, line, errors);
+      if (!pt) return undefined;
+      points.push(pt);
+    }
+    return { kind: 'track', line, net, layer: rawLayer as PcbLayer, width, points };
+  }
+
+  if (head === 'via') {
+    if (tokens.length < 3) {
+      errors.push(errAt(line, 'via requires net and x,y', 'e.g. via VCC 20,15'));
+      return undefined;
+    }
+    const net = tokens[1]!.text;
+    const at = parsePoint(tokens[2]!.text, line, errors);
+    if (!at) return undefined;
+    let size: number | undefined;
+    let drill: number | undefined;
+    for (let i = 3; i < tokens.length; i++) {
+      const tok = tokens[i]!;
+      if (tok.eqIndex <= 0) {
+        errors.push(errAt(line, `unexpected token "${tok.text}" in via`, 'optional: size=0.6 drill=0.3'));
+        return undefined;
+      }
+      const k = tok.text.slice(0, tok.eqIndex);
+      const v = parseMm(tok.text.slice(tok.eqIndex + 1));
+      if (v === undefined || v <= 0) {
+        errors.push(errAt(line, `invalid value in "${tok.text}"`, 'must be a positive number in mm'));
+        return undefined;
+      }
+      if (k === 'size') size = v;
+      else if (k === 'drill') drill = v;
+      else {
+        errors.push(errAt(line, `unknown via option "${k}"`, 'valid: size drill'));
+        return undefined;
+      }
+    }
+    return {
+      kind: 'via',
+      line,
+      net,
+      at,
+      ...(size !== undefined ? { size } : {}),
+      ...(drill !== undefined ? { drill } : {}),
+    };
+  }
+
+  return undefined;
+}
 
 /** Parse `@view:pos` tokens (with optional trailing unquoted tokens like `top` in `@pcb:12.7,8.0,90 top`). */
 function parsePlaceTokens(
@@ -123,6 +275,24 @@ export function parseEditStatement(tokens: Token[], line: number, allowEdit: boo
       return undefined;
     }
     return { kind: 'move', line, from: tokens[1]!.text, to: tokens[2]!.text };
+  }
+
+  // `-tracks <net|*>`
+  if (!first.quoted && t0 === '-tracks') {
+    if (!allowEdit) {
+      errors.push(errAt(line, '-tracks is only allowed in edit batches'));
+      return undefined;
+    }
+    if (tokens.length !== 2) {
+      errors.push(errAt(line, '-tracks requires a net name or *', 'usage: -tracks VCC or -tracks *'));
+      return undefined;
+    }
+    return { kind: 'remove_tracks', line, net: tokens[1]!.text };
+  }
+
+  // `board`, `rules`, `track`, `via` (in edit batches)
+  if (allowEdit && !first.quoted && PCB_KEYWORDS.has(t0)) {
+    return parsePcbStatement(tokens, line, errors);
   }
 
   // `-NET: pins` or `-NAME`
@@ -520,6 +690,7 @@ export function parseCnl(text: string): CnlDoc {
     breadboard: [],
     schematic: [],
     pcb: [],
+    pcbStmts: [],
     tests: [],
     code: {},
   };
@@ -621,6 +792,11 @@ export function parseCnl(text: string): CnlDoc {
       if (section === 'circuit') {
         const stmt = parseEditStatement(tokens, lineNum, false, errors);
         if (stmt) doc.circuit.push(stmt as CnlCircuitStmt);
+      } else if (section === 'pcb' && !head.quoted && PCB_KEYWORDS.has(head.text)) {
+        const stmt = parsePcbStatement(tokens, lineNum, errors);
+        if (stmt) doc.pcbStmts.push(stmt);
+      } else if (section === 'pcb' && !head.quoted && head.text === '-tracks') {
+        errors.push(errAt(lineNum, '-tracks is only allowed in edit batches'));
       } else if (section !== 'code') {
         const place = parsePlacementSectionLine(tokens, lineNum, section, errors);
         if (place) doc[section].push(place);

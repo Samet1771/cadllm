@@ -11,6 +11,7 @@ export function deltaToHighlight(delta: Delta): string[] {
     ...delta.netsAdded.map(n => `net:${n}`),
     ...delta.netsChanged.map(n => `net:${n}`),
     ...delta.netsRenamed.map(([, to]) => `net:${to}`),
+    ...delta.pcbNets.map(n => `net:${n}`),
   ];
   return [...new Set(items)];
 }
@@ -39,6 +40,9 @@ export function formatDeltaFallback(delta: Delta): string {
   for (const n of delta.netsRemoved) parts.push(`-${n}`);
   for (const n of delta.netsChanged) parts.push(`~${n}`);
   for (const [a, b] of delta.netsRenamed) parts.push(`${a}>${b}`);
+  if (delta.pcbNets.length > 0) {
+    parts.push(`pcb: ${delta.pcbNets.map(n => `~${n}`).join(' ')}`);
+  }
   return parts.join(' ');
 }
 

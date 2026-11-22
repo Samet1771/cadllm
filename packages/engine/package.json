@@ -11,7 +11,9 @@
   "dependencies": {
     "@cadllm/core": "*",
     "@cadllm/dsl": "*",
+    "@cadllm/export": "*",
     "@cadllm/library": "*",
+    "@cadllm/pcb": "*",
     "@cadllm/sim-analog": "*",
     "@cadllm/sim-digital": "*",
     "@cadllm/sim-mcu": "*",

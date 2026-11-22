@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { runBench } from '../src/bench.ts';
 
 // Token budgets (FOUNDATION §4.6): raising one is a deliberate decision, not a fix.
-const SCHEMA_BUDGET = 1200; // 11 tools since M1 (layout, render); FOUNDATION target < 2000
+const SCHEMA_BUDGET = 1350; // 12 tools since M3 (pcb layout/render + export); measured ~1296 tok; FOUNDATION target < 2000
 const TASK_BUDGET = 400;
 const LAYOUT_BUDGET = 155; // measured 121 text tok + ~25% headroom; image tokens tracked separately
 
