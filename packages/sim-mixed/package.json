@@ -1,0 +1,17 @@
+{
+  "name": "@cadllm/sim-mixed",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Event-driven mixed-signal co-simulator (MCU + digital + quasi-static analog)",
+  "license": "GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@cadllm/core": "*",
+    "@cadllm/sim-analog": "*",
+    "@cadllm/sim-digital": "*",
+    "@cadllm/sim-mcu": "*"
+  }
+}

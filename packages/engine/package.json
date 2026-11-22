@@ -14,6 +14,9 @@
     "@cadllm/library": "*",
     "@cadllm/sim-analog": "*",
     "@cadllm/sim-digital": "*",
+    "@cadllm/sim-mcu": "*",
+    "@cadllm/sim-mixed": "*",
+    "@cadllm/sim-spice": "*",
     "@cadllm/views": "*"
   }
 }

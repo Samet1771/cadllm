@@ -1,0 +1,31 @@
+cnl 1
+meta name=button-led
+
+[circuit]
+D1  led         red
+R1  res         220
+R2  res         10k
+SW1 button      released
+U1  arduino_uno
+
+5V:  SW1.1 U1.5V
+D2:  R2.1 SW1.2 U1.D2
+D13: R1.1 U1.D13
+GND: D1.K R2.2 U1.GND
+LA:  D1.A R1.2
+
+[code U1]
+void setup() {
+  pinMode(2, INPUT);
+  pinMode(13, OUTPUT);
+}
+
+void loop() {
+  digitalWrite(13, digitalRead(2));
+}
+
+[tests]
+test "button controls led"
+  run 2s press=SW1@0.5s-1.0s probes=D2,D13
+  expect D13@0.75s = 1
+  expect D13@1.5s = 0

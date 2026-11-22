@@ -33,7 +33,7 @@ async function main(argv: string[]): Promise<number> {
       if (!file) break;
       const engine = new Engine({ library: loadLibrary([builtinPartsDir]), source: 'user' });
       engine.project({ op: 'open', path: file });
-      const r = engine.test(pattern);
+      const r = await engine.test(pattern);
       console.log(r.text);
       return r.failed ? 1 : 0;
     }

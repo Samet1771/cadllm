@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Query } from '@cadllm/core';
-import { UNIT, VIEWS, bbHoleAt, type Pt, type ViewId } from '@cadllm/views';
+import { UNIT, VIEWS, bbHoleAt, type Pt, type RenderState, type ViewId } from '@cadllm/views';
 import {
   formatGridPlace,
   moveSchPlace,
@@ -15,12 +15,15 @@ interface CanvasViewProps {
   theme: 'light' | 'dark';
   selectedRef: string | undefined;
   highlight: string[];
+  simState?: RenderState;
+  pressMode?: boolean;
   onViewChange: (view: ViewId) => void;
   onSelectRef: (ref: string | undefined) => void;
   onMovePart: (ref: string, view: ViewId, placeStr: string) => void;
   onConnectPins: (pinA: string, pinB: string) => void;
   onViewportCenterChange: (gridPt: Pt) => void;
   onNotice: (msg: string) => void;
+  onPressButton?: (ref: string, down: boolean) => void;
 }
 
 interface PinDragState {
@@ -68,12 +71,15 @@ export function CanvasView({
   theme,
   selectedRef,
   highlight,
+  simState,
+  pressMode = false,
   onViewChange,
   onSelectRef,
   onMovePart,
   onConnectPins,
   onViewportCenterChange,
   onNotice,
+  onPressButton,
 }: CanvasViewProps) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -88,11 +94,13 @@ export function CanvasView({
   const compDragRef = useRef<CompDragState | null>(null);
   const panDragRef = useRef<PanDragState | null>(null);
   const pinDragRef = useRef<PinDragState | null>(null);
+  const activeButtonPressRef = useRef<string | null>(null);
 
   const rendered = useMemo(() => {
     try {
       const svg = VIEWS[activeView].render(query, {
         ...(highlight.length > 0 ? { highlight } : {}),
+        ...(simState ? { state: simState } : {}),
         theme,
       });
       return { svg, error: undefined };
@@ -102,7 +110,7 @@ export function CanvasView({
         error: err instanceof Error ? err.message : String(err),
       };
     }
-  }, [query, activeView, highlight, theme]);
+  }, [query, activeView, highlight, simState, theme]);
 
   // Apply selection attribute directly on the mounted SVG without mutating the source string.
   useEffect(() => {
@@ -139,7 +147,15 @@ export function CanvasView({
   // Track Space key for pan-anywhere mode.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+      if (
+        e.code === 'Space'
+        && !(
+          e.target instanceof HTMLInputElement
+          || e.target instanceof HTMLTextAreaElement
+          || e.target instanceof HTMLSelectElement
+          || (e.target instanceof HTMLElement && (e.target.isContentEditable || e.target.closest('.cm-editor')))
+        )
+      ) {
         setSpaceDown(true);
       }
     };
@@ -192,6 +208,13 @@ export function CanvasView({
     }));
   };
 
+  const isButtonRef = (ref: string): boolean => {
+    const comp = query.component(ref);
+    if (!comp) return false;
+    const part = query.parts.get(comp.part);
+    return comp.part === 'button' || part?.views?.sch === 'button' || part?.views?.bb === 'button';
+  };
+
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const vp = viewportRef.current;
     if (!vp) return;
@@ -212,7 +235,7 @@ export function CanvasView({
     if (e.button !== 0) return;
 
     const pinEl = findAttrEl(e.target, 'data-pin');
-    if (pinEl) {
+    if (pinEl && !pressMode) {
       const pinName = pinEl.getAttribute('data-pin');
       if (pinName) {
         e.preventDefault();
@@ -238,6 +261,13 @@ export function CanvasView({
     if (refEl && refEl instanceof SVGGElement && svgEl) {
       const ref = refEl.getAttribute('data-ref');
       if (ref) {
+        if ((pressMode || e.altKey) && onPressButton && isButtonRef(ref)) {
+          e.preventDefault();
+          activeButtonPressRef.current = ref;
+          onPressButton(ref, true);
+          vp.setPointerCapture(e.pointerId);
+          return;
+        }
         e.preventDefault();
         const startSvg = clientToSvg(svgEl, e.clientX, e.clientY);
         let startHole = findAttrEl(e.target, 'data-hole')?.getAttribute('data-hole') ?? undefined;
@@ -274,9 +304,10 @@ export function CanvasView({
     const vp = viewportRef.current;
     const svgEl = hostRef.current?.querySelector('svg');
 
+    if (activeButtonPressRef.current) return;
+
     if (pinDragRef.current && vp) {
       const vpRect = vp.getBoundingClientRect();
-      // Temporarily look up element under pointer; overlay SVG has pointer-events: none.
       const under = document.elementFromPoint(e.clientX, e.clientY);
       const hoverPinEl = findAttrEl(under, 'data-pin');
       const hoverPin = hoverPinEl?.getAttribute('data-pin') ?? undefined;
@@ -342,6 +373,13 @@ export function CanvasView({
       vp.releasePointerCapture(e.pointerId);
     }
     const svgEl = hostRef.current?.querySelector('svg');
+
+    if (activeButtonPressRef.current) {
+      const ref = activeButtonPressRef.current;
+      activeButtonPressRef.current = null;
+      onPressButton?.(ref, false);
+      return;
+    }
 
     if (pinDragRef.current) {
       const drag = pinDragRef.current;
@@ -429,7 +467,9 @@ export function CanvasView({
         </div>
 
         <div className="canvas-hint">
-          Click select · Drag move · Pin→Pin wire · {activeView === 'sch' ? 'R rotate · ' : ''}Del remove · Drag bg pan
+          {pressMode
+            ? 'Press Mode active: hold any push button to press · toggle Press Mode off to drag'
+            : `Click select · Drag move · Pin→Pin wire · ${activeView === 'sch' ? 'R rotate · ' : ''}Del remove · Alt+Click press button`}
         </div>
 
         <div className="zoom-controls">

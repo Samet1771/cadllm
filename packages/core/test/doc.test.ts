@@ -189,13 +189,40 @@ describe('checks', () => {
       'error net Y: outputs U1.Y U2.Y drive each other',
     ]);
   });
+
+  it('skips unconnected_pin warnings for board parts', () => {
+    const doc = new Doc(lib);
+    doc.transact(tx => {
+      tx.addComponent({ part: 'board' });
+      tx.addComponent({ part: 'res' });
+    });
+    const issues = basicChecks(doc.read).map(i => `${i.level} ${i.message}`);
+    expect(issues).toEqual(['warn R1.1 R1.2 unconnected']);
+  });
 });
 
 describe('parseSI', () => {
   it.each([
     ['330', 330], ['10k', 10e3], ['4.7u', 4.7e-6], ['4k7', 4700], ['100nF', 100e-9], ['5V', 5],
     ['1meg', 1e6], ['2M', 2e6], ['3m', 3e-3], ['2e-3', 2e-3], ['220Ω', 220], ['.5', 0.5],
+    ['45%', 0.45], ['100%', 1],
   ])('%s → %d', (s, v) => expect(parseSI(s)).toBeCloseTo(v, 12));
 
   it.each(['abc', '', 'k10', '1.2.3'])('%s is not a number', s => expect(parseSI(s)).toBeUndefined());
+});
+
+describe('__code meta lifecycle', () => {
+  it('moves __code:<ref> on renameComponent and deletes it on removeComponent', () => {
+    const doc = new Doc(lib);
+    doc.transact(tx => {
+      tx.addComponent({ ref: 'U1', part: 'inv' });
+      tx.setMeta('__code:U1', 'void setup() {}');
+    });
+    doc.transact(tx => tx.renameComponent('U1', 'U2'));
+    expect(doc.read.circuit.meta['__code:U1']).toBeUndefined();
+    expect(doc.read.circuit.meta['__code:U2']).toBe('void setup() {}');
+
+    doc.transact(tx => tx.removeComponent('U2'));
+    expect(doc.read.circuit.meta['__code:U2']).toBeUndefined();
+  });
 });

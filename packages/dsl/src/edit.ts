@@ -5,6 +5,9 @@ import { quoteValue, tokenizeLine } from './lexer.ts';
 import { parseEditStatement, parseCnl } from './parser.ts';
 
 export const TESTS_META_KEY = '__tests';
+export const CODE_META_PREFIX = '__code:';
+
+export const codeMetaKey = (ref: string): string => `${CODE_META_PREFIX}${ref}`;
 
 function resolvePropMap(
   tx: Tx,
@@ -181,6 +184,15 @@ export function loadCircuit(text: string, parts: PartResolver): Doc {
         } catch (err) {
           errors.push(wrapLineError(entry.line, err));
         }
+      }
+    }
+
+    for (const [ref, code] of Object.entries(parsed.code)) {
+      try {
+        const comp = tx.requireComponent(ref);
+        if (code.trim() !== '') tx.setMeta(codeMetaKey(comp.ref), code);
+      } catch (err) {
+        errors.push(err instanceof CadError ? err : new CadError('invalid', String(err)));
       }
     }
 

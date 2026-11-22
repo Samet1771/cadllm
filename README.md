@@ -4,17 +4,24 @@
 
 AI agents drive it over MCP with very few tokens: build circuits, simulate them and test them, headless. Humans get a breadboard / schematic / PCB UI on the same engine.
 
-**Status:** M1 (engine + MCP + web UI + live co-editing), pre-alpha. See [docs/FOUNDATION.md](docs/FOUNDATION.md) for the design.
+**Status:** M2 (analog/SPICE, Arduino/avr8js, mixed-signal co-sim, live UI), pre-alpha. See [docs/FOUNDATION.md](docs/FOUNDATION.md) for the design.
 
 ## Development
 
-Requires Node.js 24 or later.
+Requires Node.js 24 or later. For Arduino sketches, also install `arduino-cli` and the AVR core (set `CADLLM_ARDUINO_CLI` to override the binary path):
+
+```sh
+winget install ArduinoSA.CLI
+arduino-cli core install arduino:avr
+```
 
 ```sh
 npm install
 npm run check      # typecheck + tests
 npm run bench      # MCP token benchmark
 node packages/cli/src/main.ts test examples/nand-led.cnl
+node packages/cli/src/main.ts test examples/blink.cnl
+node packages/cli/src/main.ts test examples/button-led.cnl
 ```
 
 ### Web UI & live co-editing

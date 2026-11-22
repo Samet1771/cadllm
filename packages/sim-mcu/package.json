@@ -1,0 +1,16 @@
+{
+  "name": "@cadllm/sim-mcu",
+  "version": "0.0.0",
+  "private": true,
+  "description": "AVR8js microcontroller simulator and Arduino sketch compiler",
+  "license": "GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@cadllm/core": "*",
+    "@cadllm/sim-digital": "*",
+    "avr8js": "^0.21.1"
+  }
+}

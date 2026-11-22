@@ -20,6 +20,10 @@ const parts: PartDef[] = [
     id: 'inv', name: 'Inverter', summary: 'inverter', category: 'logic', refPrefix: 'U',
     pins: [{ id: '1', name: 'A', type: 'input' }, { id: '2', name: 'Y', type: 'output' }],
   },
+  {
+    id: 'board', name: 'Dev Board', summary: 'board', category: 'board', refPrefix: 'U',
+    pins: [{ id: '1', name: 'D0', type: 'passive' }, { id: '2', name: 'D1', type: 'passive' }, { id: '3', name: 'GND', type: 'power_in' }],
+  },
 ];
 
 export const lib: PartResolver = { get: id => parts.find(p => p.id === id) };

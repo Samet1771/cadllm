@@ -17,6 +17,7 @@ import {
   labelBoxFor,
 } from './parts.ts';
 import type { Box, PlacedComp } from './place.ts';
+import { buildBbStateOverlay, hasRenderState } from './state.ts';
 
 const SIGNAL_COLORS_LIGHT = [
   '#2b8a3e', // green
@@ -507,5 +508,15 @@ export function renderBreadboard(q: Query, opts: RenderOptions = {}): string {
   );
   const jumpersSvg = drawJumpers(routedJumpers, hlNets);
 
-  return svgDoc('bb', viewBox, [bg, boardSvg, ...partsSvg, ...jumpersSvg], buildStyle(theme));
+  if (!hasRenderState(opts.state)) {
+    return svgDoc('bb', viewBox, [bg, boardSvg, ...partsSvg, ...jumpersSvg], buildStyle(theme));
+  }
+
+  const st = buildBbStateOverlay(q, placed, partsSvg, routedJumpers.map(r => r.jumper), jumpersSvg, opts.state, theme);
+  return svgDoc(
+    'bb',
+    viewBox,
+    [...st.defs, bg, boardSvg, ...st.pinDots, ...st.partsSvg, ...st.jumpersSvg, ...st.voltageBadges],
+    `${buildStyle(theme)}\n${st.extraStyle}`,
+  );
 }

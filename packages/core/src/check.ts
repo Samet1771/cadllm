@@ -18,6 +18,7 @@ export function basicChecks(q: Query): Issue[] {
       issues.push({ level: 'error', code: 'missing_part', message: `${comp.ref}: part ${comp.part} not in library`, at: [comp.ref] });
       continue;
     }
+    if (part.category === 'board') continue;
     const open = part.pins.filter(p => p.type !== 'nc' && !q.netOfPin(pinKey(comp.id, p.id)));
     if (open.length) {
       const labels = open.map(p => q.pinLabel(pinKey(comp.id, p.id)));

@@ -128,4 +128,90 @@ test "bad"
     expect(msgs.some(m => m.startsWith('line 10:'))).toBe(true);
     expect(msgs.some(m => m.startsWith('line 11:'))).toBe(true);
   });
+
+  it('parses [code U1] verbatim, M2 analyses (ac, run) and expect measures', () => {
+    const src = `cnl 1
+meta name=mcu-test
+
+[circuit]
+U1 74hc00
+
+[code U1]
+// C++ brackets & # comments stay verbatim
+int pins[] = {13, 2};
+#define LED 13
+
+void setup() {
+  pinMode(LED, OUTPUT);
+}
+
+[tests]
+test "ac and measures"
+  ac dec 10 10 100k probes=V(OUT)
+  expect max(V(OUT)) < 5.1
+  expect V(LA)@1.5s > 1.8
+  expect freq(V(OUT)) 900..1.1k
+  expect duty(D13) 45%..55%
+
+test "mcu run"
+  run 2s press=SW1@0.5s-1.0s probes=D2,D13
+  expect period(D13) 1.9s..2.1s
+  expect D13@0.75s = 1
+`;
+    const doc = parseCnl(src);
+    expect(doc.code.U1).toBe([
+      '// C++ brackets & # comments stay verbatim',
+      'int pins[] = {13, 2};',
+      '#define LED 13',
+      '',
+      'void setup() {',
+      '  pinMode(LED, OUTPUT);',
+      '}',
+    ].join('\n'));
+    expect(doc.tests).toHaveLength(2);
+    expect(doc.tests[0]!.analysis).toEqual({
+      kind: 'ac',
+      args: { probes: 'V(OUT)' },
+      positional: ['dec', '10', '10', '100k'],
+      line: 18,
+    });
+    expect(doc.tests[0]!.expects).toEqual([
+      { kind: 'compare', probe: 'V(OUT)', measure: 'max', op: '<', value: 5.1, raw: '5.1', line: 19 },
+      { kind: 'compare', probe: 'V(LA)', measure: 'at', at: 1.5, op: '>', value: 1.8, raw: '1.8', line: 20 },
+      { kind: 'range', probe: 'V(OUT)', measure: 'freq', min: 900, max: 1100, minRaw: '900', maxRaw: '1.1k', line: 21 },
+      { kind: 'range', probe: 'D13', measure: 'duty', min: 0.45, max: 0.55, minRaw: '45%', maxRaw: '55%', line: 22 },
+    ]);
+    expect(doc.tests[1]!.analysis).toEqual({
+      kind: 'run',
+      args: { press: 'SW1@0.5s-1.0s', probes: 'D2,D13' },
+      positional: ['2s'],
+      line: 25,
+    });
+    expect(doc.tests[1]!.expects).toEqual([
+      { kind: 'range', probe: 'D13', measure: 'period', min: 1.9, max: 2.1, minRaw: '1.9s', maxRaw: '2.1s', line: 26 },
+      { kind: 'compare', probe: 'D13', measure: 'at', at: 0.75, op: '=', value: 1, raw: '1', line: 27 },
+    ]);
+  });
+
+  it('rejects unknown measures and removed toggles syntax', () => {
+    const bad = `cnl 1
+[circuit]
+[tests]
+test "bad measures"
+  run 1s
+  expect bogus(V(OUT)) < 1
+  expect V(OUT)@nope > 1
+  expect D13 toggles 2s±100m
+`;
+    expect(() => parseCnl(bad)).toThrow(CadErrors);
+    try {
+      parseCnl(bad);
+    } catch (e) {
+      const msgs = (e as CadErrors).errors.map(String);
+      expect(msgs).toHaveLength(3);
+      expect(msgs[0]).toMatch(/^line 6: unknown measure "bogus"/);
+      expect(msgs[1]).toMatch(/^line 7: invalid time "nope"/);
+      expect(msgs[2]).toMatch(/^line 8: cannot parse expect/);
+    }
+  });
 });

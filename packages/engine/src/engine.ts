@@ -2,7 +2,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, extname, isAbsolute, resolve } from 'node:path';
 import { basicChecks, CadError, Doc, naturalCompare, type ChangeSource, type Delta, type PartDef, type TxInfo } from '@cadllm/core';
-import { applyEdit, loadCircuit, printCircuit, printDelta, saveCnl, TESTS_META_KEY } from '@cadllm/dsl';
+import { applyEdit, codeMetaKey, loadCircuit, printCircuit, printDelta, saveCnl, TESTS_META_KEY } from '@cadllm/dsl';
 import type { Library } from '@cadllm/library';
 import { view, viewChecks, type RenderOptions } from '@cadllm/views';
 import { help } from './help.ts';
@@ -164,9 +164,14 @@ export class Engine {
 
   // ---- read ----
 
-  read(args: { select?: string; detail?: 0 | 1 | 2; since?: number; place?: boolean; tests?: boolean } = {}): string {
+  read(args: { select?: string; detail?: 0 | 1 | 2; since?: number; place?: boolean; tests?: boolean; code?: string } = {}): string {
     const p = this.current;
     const q = p.doc.read;
+    if (args.code !== undefined) {
+      const comp = q.requireComponent(args.code);
+      const code = q.circuit.meta[codeMetaKey(comp.ref)];
+      return code !== undefined ? `${this.tag(p)} [code ${comp.ref}]\n${code}` : `${this.tag(p)} ${comp.ref}: no code`;
+    }
     const select = args.select?.split(/[\s,]+/).filter(Boolean);
     if (args.since !== undefined) return this.readSince(p, args.since);
     const body = printCircuit(q, { detail: args.detail ?? 1, place: args.place ?? false, ...(select ? { select } : {}) });
@@ -193,13 +198,28 @@ export class Engine {
 
   // ---- edit ----
 
-  edit(args: { cnl?: string; tests?: string; dry_run?: boolean; if_rev?: number }): string {
-    if (args.cnl === undefined && args.tests === undefined) throw new CadError('invalid', 'edit needs cnl or tests');
+  edit(args: { cnl?: string; tests?: string; code?: { ref: string; text: string }; dry_run?: boolean; if_rev?: number }): string {
+    if (args.cnl === undefined && args.tests === undefined && args.code === undefined) {
+      throw new CadError('invalid', 'edit needs cnl, tests or code');
+    }
     if (args.tests !== undefined && args.tests.trim()) parseTests(args.tests);
     const p = this.current;
     const info = p.doc.transact(tx => {
       if (args.cnl !== undefined) applyEdit(tx, args.cnl);
       if (args.tests !== undefined) tx.setMeta(TESTS_META_KEY, args.tests.trim() ? args.tests.replace(/\s+$/, '') : null);
+      if (args.code !== undefined) {
+        const comp = tx.requireComponent(args.code.ref);
+        const key = codeMetaKey(comp.ref);
+        const normalized = args.code.text.replace(/\r\n/g, '\n').replace(/^\n+|\n+$/g, '');
+        const prev = tx.circuit.meta[key];
+        if (normalized.trim() === '') {
+          tx.setMeta(key, null);
+          if (prev !== undefined) tx.notes.push(`code -${comp.ref}`);
+        } else {
+          tx.setMeta(key, normalized);
+          if (prev !== normalized) tx.notes.push(`code ${comp.ref}`);
+        }
+      }
     }, { source: this.source, ...(args.dry_run ? { dryRun: true } : {}), ...(args.if_rev !== undefined ? { ifRev: args.if_rev } : {}) });
     const line = printDelta(info, p.doc.read);
     const dry = args.dry_run ? `dry ${line.replace(/rev=\d+/, `rev=${p.doc.rev} unchanged`)}` : line;
@@ -300,19 +320,20 @@ export class Engine {
     return [head, ...issues.map(formatIssue)].join('\n');
   }
 
-  sim(args: { run: string }): string {
+  async sim(args: { run: string }): Promise<string> {
     const p = this.current;
     const run = args.run.trim();
     const m = run.match(/^test(?:\s+(.+))?$/s);
     if (m) {
       const pattern = (m[1] ?? '*').trim().replace(/^"(.*)"$/, '$1');
-      return `${this.tag(p)} ${runFileTests(p.doc.read, p.doc.read.circuit.meta[TESTS_META_KEY], pattern).text}`;
+      const r = await runFileTests(p.doc.read, p.doc.read.circuit.meta[TESTS_META_KEY], pattern);
+      return `${this.tag(p)} ${r.text}`;
     }
-    return `${this.tag(p)} ${runAdhoc(p.doc.read, run)}`;
+    return `${this.tag(p)} ${await runAdhoc(p.doc.read, run)}`;
   }
 
   /** For the CLI: run tests of the current project. */
-  test(pattern = '*'): { text: string; passed: number; failed: number } {
+  async test(pattern = '*'): Promise<{ text: string; passed: number; failed: number }> {
     const q = this.current.doc.read;
     return runFileTests(q, q.circuit.meta[TESTS_META_KEY], pattern);
   }

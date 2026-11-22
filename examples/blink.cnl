@@ -1,0 +1,28 @@
+cnl 1
+meta name=blink
+
+[circuit]
+D1 led         red
+R1 res         220
+U1 arduino_uno
+
+D13: R1.1 U1.D13
+GND: D1.K U1.GND
+LA:  D1.A R1.2
+
+[code U1]
+void setup() {
+  pinMode(13, OUTPUT);
+}
+
+void loop() {
+  digitalWrite(13, HIGH);
+  delay(1000);
+  digitalWrite(13, LOW);
+  delay(1000);
+}
+
+[tests]
+test "blink 1s"
+  run 4s probes=D13
+  expect period(D13) 1.9s..2.1s

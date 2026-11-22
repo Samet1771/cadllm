@@ -19,6 +19,8 @@ const SI: Record<string, number> = {
  */
 export function parseSI(input: string): number | undefined {
   const s = input.trim().replace(/Ω|ohms?$/i, '');
+  const pct = s.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)\s*%$/);
+  if (pct) return Number(pct[1]) * 0.01;
   const rkm = s.match(/^(\d+)(meg|[pnuµmkKMG])(\d+)([A-Za-z]*)$/);
   if (rkm) {
     const [, int, pre, frac] = rkm;

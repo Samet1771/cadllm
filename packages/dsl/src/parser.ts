@@ -6,6 +6,9 @@ import type {
   CnlEditStmt,
   CnlSectionPlace,
   CompareOp,
+  ExpectCompare,
+  ExpectMeasure,
+  ExpectRange,
   ExpectTable,
   SectionName,
   TestBlock,
@@ -26,7 +29,9 @@ const PLACE_SECTION_VIEW: Record<'breadboard' | 'schematic' | 'pcb', string> = {
   pcb: 'pcb',
 };
 
-const ANALYSIS_KINDS = new Set(['logic', 'dc', 'op', 'tran', 'ac']);
+const ANALYSIS_KINDS = new Set(['logic', 'dc', 'op', 'tran', 'ac', 'run']);
+const MEASURES = new Set<ExpectMeasure>(['min', 'max', 'avg', 'final', 'rms', 'freq', 'period', 'duty', 'rise', 'fall']);
+const CODE_SECTION_END_RE = /^\[(circuit|breadboard|schematic|pcb|tests|code\s+\S+)\]\s*$/;
 
 const errAt = (line: number, message: string, hint?: string) =>
   new CadError('invalid', `line ${line}: ${message}`, hint);
@@ -300,7 +305,51 @@ function parsePlacementSectionLine(tokens: Token[], line: number, section: 'brea
   return { line, ref, pos };
 }
 
-function parseExpectLine(tokens: Token[], line: number, errors: CadError[]): { kind: 'compare'; probe: string; op: CompareOp; value: number; raw: string; line: number } | { kind: 'range'; probe: string; min: number; max: number; minRaw: string; maxRaw: string; line: number } | undefined {
+function parseExpectSubject(
+  rawSubject: string,
+  line: number,
+  errors: CadError[],
+): { probe: string; measure?: ExpectMeasure; at?: number } | undefined {
+  const atIdx = rawSubject.indexOf('@');
+  if (atIdx >= 0) {
+    const base = rawSubject.slice(0, atIdx).trim();
+    const tRaw = rawSubject.slice(atIdx + 1).trim();
+    if (!base || !tRaw) {
+      errors.push(errAt(line, `bad probe@time "${rawSubject}"`, 'use e.g. V(LA)@1.5s or D13@0.75s'));
+      return undefined;
+    }
+    if (/^[A-Za-z]+\(/.test(base) && !/^[VI]\(/i.test(base)) {
+      errors.push(errAt(line, `cannot combine measure with @time in "${rawSubject}"`));
+      return undefined;
+    }
+    const at = parseSI(tRaw);
+    if (at === undefined || !Number.isFinite(at) || at < 0) {
+      errors.push(errAt(line, `invalid time "${tRaw}" in "${rawSubject}"`));
+      return undefined;
+    }
+    return { probe: base, measure: 'at', at };
+  }
+
+  const fnMatch = rawSubject.match(/^([A-Za-z]+)\((.+)\)$/);
+  if (fnMatch) {
+    const fn = fnMatch[1]!.toLowerCase();
+    const inner = fnMatch[2]!.trim();
+    if (fn === 'v' || fn === 'i') return { probe: rawSubject };
+    if (MEASURES.has(fn as ExpectMeasure)) {
+      if (!inner) {
+        errors.push(errAt(line, `missing probe in "${rawSubject}"`));
+        return undefined;
+      }
+      return { probe: inner, measure: fn as ExpectMeasure };
+    }
+    errors.push(errAt(line, `unknown measure "${fnMatch[1]}"`, 'measures: min max avg final rms freq period duty rise fall, or probe@time'));
+    return undefined;
+  }
+
+  return { probe: rawSubject };
+}
+
+function parseExpectLine(tokens: Token[], line: number, errors: CadError[]): ExpectCompare | ExpectRange | undefined {
   const rest = tokens.slice(1).map(t => t.text).join(' ').trim();
   if (!rest) {
     errors.push(errAt(line, 'expect requires an assertion or "table"'));
@@ -309,7 +358,9 @@ function parseExpectLine(tokens: Token[], line: number, errors: CadError[]): { k
 
   const rangeMatch = rest.match(/^(\S+)\s+(\S+)\.\.(\S+)$/);
   if (rangeMatch) {
-    const [, probe, minRaw, maxRaw] = rangeMatch as [string, string, string, string];
+    const [, subject, minRaw, maxRaw] = rangeMatch as [string, string, string, string];
+    const subj = parseExpectSubject(subject, line, errors);
+    if (!subj) return undefined;
     const min = parseSI(minRaw);
     const max = parseSI(maxRaw);
     if (min === undefined) {
@@ -324,18 +375,39 @@ function parseExpectLine(tokens: Token[], line: number, errors: CadError[]): { k
       errors.push(errAt(line, `range min "${minRaw}" exceeds max "${maxRaw}"`));
       return undefined;
     }
-    return { kind: 'range', probe, min, max, minRaw, maxRaw, line };
+    return {
+      kind: 'range',
+      probe: subj.probe,
+      ...(subj.measure !== undefined ? { measure: subj.measure } : {}),
+      ...(subj.at !== undefined ? { at: subj.at } : {}),
+      min,
+      max,
+      minRaw,
+      maxRaw,
+      line,
+    };
   }
 
   const cmpMatch = rest.match(/^(\S+?)\s*(<=|>=|<|>|=)\s*(\S+)$/);
   if (cmpMatch) {
-    const [, probe, op, raw] = cmpMatch as [string, string, CompareOp, string];
+    const [, subject, op, raw] = cmpMatch as [string, string, CompareOp, string];
+    const subj = parseExpectSubject(subject, line, errors);
+    if (!subj) return undefined;
     const value = parseSI(raw);
     if (value === undefined) {
       errors.push(errAt(line, `invalid SI value "${raw}" in expect`));
       return undefined;
     }
-    return { kind: 'compare', probe, op, value, raw, line };
+    return {
+      kind: 'compare',
+      probe: subj.probe,
+      ...(subj.measure !== undefined ? { measure: subj.measure } : {}),
+      ...(subj.at !== undefined ? { at: subj.at } : {}),
+      op,
+      value,
+      raw,
+      line,
+    };
   }
 
   errors.push(errAt(line, `cannot parse expect "${rest}"`, 'use "expect V(LA) > 1.8", "expect I(D1) 8m..15m", or "expect table"'));
@@ -424,7 +496,7 @@ function parseTestsLines(rawLines: { line: number; text: string }[], errors: Cad
         continue;
       }
 
-      errors.push(errAt(line, `unknown test directive "${head.text}"`, 'expected logic, dc, op, tran, ac, or expect'));
+      errors.push(errAt(line, `unknown test directive "${head.text}"`, 'expected logic, dc, op, tran, ac, run, or expect'));
     }
   }
 
@@ -449,16 +521,46 @@ export function parseCnl(text: string): CnlDoc {
     schematic: [],
     pcb: [],
     tests: [],
+    code: {},
   };
 
   let seenHeader = false;
   let section: SectionName | undefined;
+  let currentCodeRef: string | undefined;
+  const codeBuffers = new Map<string, string[]>();
   const testRawLines: { line: number; text: string }[] = [];
 
   for (let i = 0; i < lines.length; i++) {
     const lineNum = i + 1;
     const raw = lines[i]!;
     const trimmed = raw.trim();
+
+    if (section === 'code' && currentCodeRef !== undefined) {
+      if (!CODE_SECTION_END_RE.test(trimmed)) {
+        codeBuffers.get(currentCodeRef)!.push(raw);
+        continue;
+      }
+      currentCodeRef = undefined;
+    }
+
+    // Check `[code <ref>]` before generic `[name]` section header.
+    const codeSecMatch = trimmed.match(/^\[code\s+(\S+)\](?:\s*#.*)?$/);
+    if (codeSecMatch) {
+      if (!seenHeader) {
+        errors.push(errAt(1, 'missing "cnl 1" header'));
+        seenHeader = true;
+      }
+      const ref = codeSecMatch[1]!;
+      const dup = [...codeBuffers.keys()].some(k => k.toUpperCase() === ref.toUpperCase());
+      if (dup) {
+        errors.push(errAt(lineNum, `duplicate [code ${ref}] section`));
+      } else {
+        codeBuffers.set(ref, []);
+      }
+      section = 'code';
+      currentCodeRef = dup ? undefined : ref;
+      continue;
+    }
 
     // Check section header `[name]` before section-specific handling so `[tests]` terminates cleanly.
     const secMatch = trimmed.match(/^\[([A-Za-z0-9_-]+)\](?:\s*#.*)?$/);
@@ -470,7 +572,7 @@ export function parseCnl(text: string): CnlDoc {
       const name = secMatch[1]!.toLowerCase();
       const mapped = SECTIONS[name];
       if (!mapped) {
-        errors.push(errAt(lineNum, `unknown section [${secMatch[1]}]`, 'valid: [circuit] [breadboard] [schematic] [pcb] [tests]'));
+        errors.push(errAt(lineNum, `unknown section [${secMatch[1]}]`, 'valid: [circuit] [breadboard] [schematic] [pcb] [code <ref>] [tests]'));
         section = undefined;
       } else {
         section = mapped;
@@ -519,7 +621,7 @@ export function parseCnl(text: string): CnlDoc {
       if (section === 'circuit') {
         const stmt = parseEditStatement(tokens, lineNum, false, errors);
         if (stmt) doc.circuit.push(stmt as CnlCircuitStmt);
-      } else {
+      } else if (section !== 'code') {
         const place = parsePlacementSectionLine(tokens, lineNum, section, errors);
         if (place) doc[section].push(place);
       }
@@ -527,6 +629,13 @@ export function parseCnl(text: string): CnlDoc {
   }
 
   if (!seenHeader) errors.push(errAt(1, 'empty file; expected "cnl 1" header'));
+
+  for (const [ref, rawLines] of codeBuffers) {
+    const body = [...rawLines];
+    while (body.length > 0 && body[0]!.trim() === '') body.shift();
+    while (body.length > 0 && body[body.length - 1]!.trim() === '') body.pop();
+    if (body.length > 0) doc.code[ref] = body.join('\n');
+  }
 
   if (testRawLines.length > 0) {
     const parsedTests = parseTestsLines(testRawLines, errors);

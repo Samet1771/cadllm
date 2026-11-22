@@ -17,22 +17,32 @@ values: SI with RKM ok (4k7 2.2u 10meg 330); quote values with spaces.
 Joining two named nets is refused (net_short) – use mv to merge on purpose.`,
   sim: `sim run="<analysis>[; expect …]"
 dc                       DC operating point (op = dc). probes=V(LA),I(D1)
-                         probes: V(NET) V(REF.PIN) I(REF); logic ICs are solved first
+                         probes: V(NET) V(REF.PIN) I(REF); logic ICs first; SPICE fallback for BJTs/opamps/555
+tran <stop> [step=…]     SPICE transient; summarizes min/max/final/freq (probes=V(…),I(…))
+ac <dec|oct|lin> <pts> <f0> <f1> [probes=…]
+                         SPICE AC sweep; summarizes start/stop gain and -3 dB point
+run <dur> [press=SW1@0.5s-1s,…] [probes=…]
+                         mixed MCU + digital + analog co-sim (compiles [code REF])
 logic in=SW1,SW2 out=Y   truth table over switches/buttons
 logic clock=SW1 reset=SW2 cycles=4 period=1u out=Q1,Q0
                          clocked run, one row per cycle (0 = after reset); add "trace" for transitions
 logic out=Y              settled values with current switch states
-expect I(D1) < 20m · expect V(LA) 1.8..2.2 · expect table; 0 1 -> 1; 1 1 -> 0
+expect <subj> <op> <val> | <min>..<max> | expect table
+                         subj: V(LA), I(D1), D13@0.75s, or min/max/avg/final/rms/freq/period/duty/rise/fall(probe)
 test [name*]             run the project's [tests] (see help tests)`,
   tests: `Project tests (edit tests="…" replaces them; saved in [tests]):
 test "led current"
   dc
   expect I(D1) 8m..15m
+test "blink"
+  run 4s probes=D13
+  expect period(D13) 1.9s..2.1s
 test "nand"
   logic in=SW1 out=U1.1Y
   expect table
     0 -> 1
     1 -> 0
+Supports dc/op, logic, tran, ac, run (with [code REF] sections).
 Run: sim run="test" or sim run="test led*". cli: cadllm test file.cnl`,
   project: `project op=new|open|save|list|use|fork|merge|close [name] [path]
 Edits go to the current project; the first edit creates "untitled".

@@ -1,10 +1,52 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
-import { basicChecks, Doc, naturalCompare, type PartDef, type TxInfo } from '@cadllm/core';
+import { basicChecks, Doc, naturalCompare, parseSI, type PartDef, type TxInfo } from '@cadllm/core';
 import { VIEWS, type ViewId } from '@cadllm/views';
 import { buildPartResolver } from './parts.ts';
+import { parsePressIntervals } from './sim.ts';
 import type { ChangedNotification, RpcApi, StateResponse } from './types.ts';
 
 export const DEMO_PARTS: PartDef[] = [
+  {
+    id: 'arduino_uno',
+    name: 'Arduino Uno',
+    summary: 'ATmega328P microcontroller board (header pins)',
+    category: 'board',
+    refPrefix: 'U',
+    pins: [
+      { id: 'D0', name: 'D0', aliases: ['RX'], type: 'bidir' },
+      { id: 'D1', name: 'D1', aliases: ['TX'], type: 'bidir' },
+      { id: 'D2', name: 'D2', type: 'bidir' },
+      { id: 'D3', name: 'D3', type: 'bidir' },
+      { id: 'D4', name: 'D4', type: 'bidir' },
+      { id: 'D5', name: 'D5', type: 'bidir' },
+      { id: 'D6', name: 'D6', type: 'bidir' },
+      { id: 'D7', name: 'D7', type: 'bidir' },
+      { id: 'D8', name: 'D8', type: 'bidir' },
+      { id: 'D9', name: 'D9', type: 'bidir' },
+      { id: 'D10', name: 'D10', type: 'bidir' },
+      { id: 'D11', name: 'D11', type: 'bidir' },
+      { id: 'D12', name: 'D12', type: 'bidir' },
+      { id: 'D13', name: 'D13', type: 'bidir' },
+      { id: 'A0', name: 'A0', type: 'bidir' },
+      { id: 'A1', name: 'A1', type: 'bidir' },
+      { id: 'A2', name: 'A2', type: 'bidir' },
+      { id: 'A3', name: 'A3', type: 'bidir' },
+      { id: 'A4', name: 'A4', type: 'bidir' },
+      { id: 'A5', name: 'A5', type: 'bidir' },
+      { id: '5V', name: '5V', type: 'power_out' },
+      { id: '3V3', name: '3V3', type: 'power_out' },
+      { id: 'VIN', name: 'VIN', type: 'power_in' },
+      { id: 'GND1', name: 'GND', type: 'power_in' },
+      { id: 'GND2', name: 'GND2', type: 'power_in' },
+      { id: 'GND3', name: 'GND3', type: 'power_in' },
+      { id: 'RESET', name: 'RESET', type: 'input' },
+      { id: 'AREF', name: 'AREF', type: 'passive' },
+      { id: 'IOREF', name: 'IOREF', type: 'power_out' },
+    ],
+    sim: [{ kind: 'mcu', ref: 'avr8js-uno' }],
+    footprints: ['Arduino_Uno_R3'],
+    views: { sch: 'board', bb: 'arduino_uno' },
+  },
   {
     id: 'battery',
     name: 'Battery',
@@ -96,19 +138,112 @@ export const DEMO_PARTS: PartDef[] = [
   },
 ];
 
+const BLINK_CODE = [
+  'void setup() {',
+  '  pinMode(13, OUTPUT);',
+  '  Serial.begin(9600);',
+  '  Serial.println("blink ready");',
+  '}',
+  '',
+  'void loop() {',
+  '  digitalWrite(13, HIGH);',
+  '  delay(1000);',
+  '  digitalWrite(13, LOW);',
+  '  delay(1000);',
+  '}',
+].join('\n');
+
+const BUTTON_LED_CODE = [
+  'void setup() {',
+  '  pinMode(2, INPUT);',
+  '  pinMode(13, OUTPUT);',
+  '}',
+  '',
+  'void loop() {',
+  '  digitalWrite(13, digitalRead(2));',
+  '}',
+].join('\n');
+
 export interface DemoBackend extends RpcApi {
   onChanged(cb: (n: ChangedNotification) => void): () => void;
   simulateAiEdit(): void;
 }
 
-/** Create an in-browser ?demo backend backed by @cadllm/core Doc with canned parts and nand-led circuit. */
+function fmtDemoTime(t: number): string {
+  if (Math.abs(t) < 1e-9) return '0';
+  if (t >= 1) return `${Number(t.toFixed(3))}s`;
+  return `${Number((t * 1000).toFixed(2))}m`;
+}
+
+function runCannedDemoSim(doc: Doc, projectName: string, runCmd: string): string {
+  const m = runCmd.trim().match(/^run\s+(\S+)(.*)$/i);
+  if (!m) {
+    return `${projectName} rev=${doc.rev} ok (demo mode: try "run 4s probes=D13" or connect cadllm serve)`;
+  }
+  const dur = Math.max(0.2, Math.min(20, parseSI(m[1]!) ?? 4));
+  const rest = m[2] ?? '';
+  const pressMatch = rest.match(/press=([^\s]+)/i);
+  const probesMatch = rest.match(/probes=([^\s]+)/i);
+  const pressIntervals = pressMatch ? parsePressIntervals(pressMatch[1]!) : [];
+  const requestedProbes = probesMatch
+    ? probesMatch[1]!.split(',').map(s => s.trim()).filter(Boolean)
+    : [];
+
+  const q = doc.read;
+  const hasButton = q.components().some(c => c.part === 'button');
+  const mcu = q.components().find(c => c.part === 'arduino_uno');
+  const code = mcu ? q.circuit.meta[`__code:${mcu.ref}`] ?? '' : '';
+
+  if (hasButton && (pressIntervals.length > 0 || requestedProbes.some(p => p.toUpperCase() === 'D2'))) {
+    const probes = requestedProbes.length > 0 ? requestedProbes : ['D2', 'D13'];
+    const times = new Set<number>([0, dur]);
+    for (const iv of pressIntervals) {
+      if (iv.start >= 0 && iv.start <= dur) times.add(iv.start);
+      if (iv.end >= 0 && iv.end <= dur) times.add(iv.end);
+    }
+    const sorted = [...times].sort((a, b) => a - b);
+    const lines = [`${projectName} rev=${doc.rev} t     ${probes.join(' ')}`];
+    for (const t of sorted) {
+      const pressed = pressIntervals.some(iv => t >= iv.start - 1e-9 && t < iv.end - 1e-9);
+      const val = pressed ? '1' : '0';
+      lines.push(`${fmtDemoTime(t).padEnd(5)} ${probes.map(p => (p.startsWith('V(') ? (pressed ? '5' : '0') : val).padEnd(p.length)).join(' ').trimEnd()}`);
+    }
+    return lines.join('\n');
+  }
+
+  // Canned Blink trace: uses delay(...) from sketch if present, defaulting to 1s.
+  const delayMatch = code.match(/delay\((\d+)\)/);
+  const halfPeriod = delayMatch ? Math.max(0.1, Number(delayMatch[1]) / 1000) : 1;
+  const probes = requestedProbes.length > 0 ? requestedProbes : ['D13'];
+  const lines = [`${projectName} rev=${doc.rev} t     ${probes.join(' ')}`];
+  let high = true;
+  for (let t = 0; t <= dur + 1e-9; t += halfPeriod) {
+    const v = high ? '1' : '0';
+    lines.push(`${fmtDemoTime(t).padEnd(5)} ${probes.map(p => (p.startsWith('V(') ? (high ? '5' : '0') : v).padEnd(p.length)).join(' ').trimEnd()}`);
+    high = !high;
+  }
+  if (mcu && /Serial\./.test(code)) {
+    lines.push(`serial ${mcu.ref}: blink ready`);
+  }
+  return lines.join('\n');
+}
+
+/** Create an in-browser ?demo backend backed by @cadllm/core Doc with canned blink, button-led, and nand-led circuits. */
 export function createDemoBackend(): DemoBackend {
   const resolver = buildPartResolver(DEMO_PARTS);
-  const doc = new Doc(resolver);
   const log: { rev: number; source: string; summary: string }[] = [];
   const listeners = new Set<(n: ChangedNotification) => void>();
-  let projectName = 'nand-led-demo';
-  const projects = new Map<string, Doc>([[projectName, doc]]);
+
+  const blinkDoc = new Doc(resolver);
+  const buttonDoc = new Doc(resolver);
+  const nandDoc = new Doc(resolver);
+
+  let projectName = 'arduino-blink';
+  const projects = new Map<string, Doc>([
+    ['arduino-blink', blinkDoc],
+    ['arduino-button-led', buttonDoc],
+    ['nand-led-demo', nandDoc],
+  ]);
 
   const summarize = (info: TxInfo): string => {
     const d = info.delta;
@@ -118,6 +253,7 @@ export function createDemoBackend(): DemoBackend {
       ...d.changed.map(r => `~${r}`),
       ...d.netsAdded.map(n => `+${n}`),
       ...d.netsChanged.map(n => `~${n}`),
+      ...info.notes,
     ];
     return items.join(' ');
   };
@@ -138,7 +274,31 @@ export function createDemoBackend(): DemoBackend {
     });
   };
 
-  doc.transact(tx => {
+  blinkDoc.transact(tx => {
+    tx.addComponent({ ref: 'U1', part: 'arduino_uno', place: { sch: '12,14', bb: '-24,2' } });
+    tx.addComponent({ ref: 'R1', part: 'res', props: { resistance: '220' }, place: { sch: '28,12', bb: 'D10-D14' } });
+    tx.addComponent({ ref: 'D1', part: 'led', props: { color: 'red' }, place: { sch: '34,12', bb: 'E14-E16' } });
+    tx.connect('D13', ['U1.D13', 'R1.1']);
+    tx.connect('LA', ['R1.2', 'D1.A']);
+    tx.connect('GND', ['D1.K', 'U1.GND1']);
+    tx.setMeta('__code:U1', BLINK_CODE);
+  }, { source: 'system', label: 'init' });
+
+  buttonDoc.transact(tx => {
+    tx.addComponent({ ref: 'U1', part: 'arduino_uno', place: { sch: '12,14', bb: '-24,2' } });
+    tx.addComponent({ ref: 'SW1', part: 'button', props: { state: 'released' }, place: { sch: '26,6', bb: 'E4' } });
+    tx.addComponent({ ref: 'R2', part: 'res', props: { resistance: '10k' }, place: { sch: '26,12,90', bb: 'E8-E12' } });
+    tx.addComponent({ ref: 'R1', part: 'res', props: { resistance: '220' }, place: { sch: '32,14', bb: 'D18-D22' } });
+    tx.addComponent({ ref: 'D1', part: 'led', props: { color: 'green' }, place: { sch: '38,14', bb: 'E22-E24' } });
+    tx.connect('5V', ['SW1.1', 'U1.5V']);
+    tx.connect('D2', ['R2.1', 'SW1.2', 'U1.D2']);
+    tx.connect('D13', ['R1.1', 'U1.D13']);
+    tx.connect('LA', ['D1.A', 'R1.2']);
+    tx.connect('GND', ['D1.K', 'R2.2', 'U1.GND1']);
+    tx.setMeta('__code:U1', BUTTON_LED_CODE);
+  }, { source: 'system', label: 'init' });
+
+  nandDoc.transact(tx => {
     tx.addComponent({ ref: 'BAT1', part: 'battery', props: { voltage: '5V' }, place: { sch: '2,6', bb: '-6,4' } });
     tx.addComponent({ ref: 'SW1', part: 'button', props: { state: 'released' }, place: { sch: '8,4', bb: 'E4' } });
     tx.addComponent({ ref: 'R2', part: 'res', props: { resistance: '10k' }, place: { sch: '8,10,90', bb: 'E8-E12' } });
@@ -152,7 +312,7 @@ export function createDemoBackend(): DemoBackend {
     tx.connect('GND', ['BAT1.-', 'R2.2', 'U1.GND', 'D1.K']);
   }, { source: 'system', label: 'init' });
 
-  attachDoc(projectName, doc);
+  for (const [name, d] of projects) attachDoc(name, d);
 
   const curDoc = (): Doc => projects.get(projectName)!;
 
@@ -259,7 +419,22 @@ export function createDemoBackend(): DemoBackend {
       return () => listeners.delete(cb);
     },
     simulateAiEdit() {
-      const r1 = curDoc().read.component('R1');
+      const d = curDoc();
+      const u1 = d.read.component('U1');
+      if (u1?.part === 'arduino_uno') {
+        const cur = d.read.circuit.meta[`__code:${u1.ref}`] ?? BLINK_CODE;
+        const next = cur.includes('delay(1000)')
+          ? cur.replace(/delay\(1000\)/g, 'delay(500)')
+          : cur.includes('delay(500)')
+            ? cur.replace(/delay\(500\)/g, 'delay(1000)')
+            : `${cur}\n// AI updated`;
+        d.transact(tx => {
+          tx.setMeta(`__code:${u1.ref}`, next);
+          tx.notes.push(`code ${u1.ref}`);
+        }, { source: 'ai' });
+        return;
+      }
+      const r1 = d.read.component('R1');
       const nextVal = r1?.props.resistance === '470' ? '330' : '470';
       applyDemoCnl(`~R1 resistance=${nextVal}`, 'ai');
     },
@@ -284,9 +459,35 @@ export function createDemoBackend(): DemoBackend {
     async call<T = string>(method: string, params: Record<string, unknown> = {}): Promise<T> {
       const d = curDoc();
       switch (method) {
-        case 'read':
+        case 'read': {
+          if (typeof params.code === 'string') {
+            const comp = d.read.requireComponent(params.code);
+            const code = d.read.circuit.meta[`__code:${comp.ref}`];
+            return (
+              code !== undefined
+                ? `${projectName} rev=${d.rev} [code ${comp.ref}]\n${code}`
+                : `${projectName} rev=${d.rev} ${comp.ref}: no code`
+            ) as T;
+          }
           return printRead(Boolean(params.place)) as T;
+        }
         case 'edit': {
+          if (params.code && typeof params.code === 'object') {
+            const codeEdit = params.code as { ref: string; text: string };
+            const info = d.transact(tx => {
+              const comp = tx.requireComponent(codeEdit.ref);
+              const key = `__code:${comp.ref}`;
+              const norm = codeEdit.text.replace(/\r\n/g, '\n').replace(/^\n+|\n+$/g, '');
+              if (norm.trim() === '') {
+                tx.setMeta(key, null);
+                tx.notes.push(`code -${comp.ref}`);
+              } else {
+                tx.setMeta(key, norm);
+                tx.notes.push(`code ${comp.ref}`);
+              }
+            }, { source: 'user' });
+            return `ok rev=${info.rev} ${summarize(info)}`.trim() as T;
+          }
           const info = applyDemoCnl(String(params.cnl ?? ''), 'user');
           return `ok rev=${info.rev} ${summarize(info)}`.trim() as T;
         }
@@ -295,7 +496,7 @@ export function createDemoBackend(): DemoBackend {
           const matches = DEMO_PARTS.filter(p =>
             !q || p.id.includes(q) || p.name.toLowerCase().includes(q) || p.summary.toLowerCase().includes(q) || p.category.includes(q),
           );
-          if (!matches.length) return `no parts match "${q}" · categories: io logic passive source` as T;
+          if (!matches.length) return `no parts match "${q}" · categories: board io logic passive source` as T;
           return matches.map(p => `${p.id}  ${p.summary}  ${p.pins.length}p${p.footprints?.length ? ` ${p.footprints.join('/')}` : ''}`).join('\n') as T;
         }
         case 'check': {
@@ -304,7 +505,7 @@ export function createDemoBackend(): DemoBackend {
           return [`${projectName} rev=${d.rev} ${errs} err ${issues.length - errs} warn`, ...issues.map(i => `${i.level === 'error' ? 'err ' : 'warn'} ${i.message}`)].join('\n') as T;
         }
         case 'sim':
-          return `${projectName} rev=${d.rev} ok (demo mode: connect cadllm serve for full ngspice/logic sim)` as T;
+          return runCannedDemoSim(d, projectName, String(params.run ?? '')) as T;
         case 'history': {
           const op = String(params.op ?? 'log');
           if (op === 'undo') {

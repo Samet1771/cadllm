@@ -6,6 +6,7 @@ import { resolveSchFamily } from './nets.ts';
 import { parseSchPlace } from './place.ts';
 import { routeNets } from './route.ts';
 import { buildSymbol } from './symbols/index.ts';
+import { buildSchStateOverlay, hasRenderState } from './state.ts';
 import { schStyle } from './theme.ts';
 import type { GridBox, PlacedSymbol } from './types.ts';
 
@@ -83,9 +84,14 @@ export function renderSchematic(q: Query, opts: RenderOptions = {}): string {
     h: (b.maxY - b.minY + margin * 2) * UNIT,
   };
 
-  const compGroups = symbols.map(s => {
+  const buildCompGroup = (
+    s: PlacedSymbol,
+    bodyEls: string[],
+    before: string[] = [],
+    after: string[] = [],
+  ): string => {
     const isHl = highlightRefs.has(s.comp.ref.toUpperCase());
-    const children: string[] = [...s.bodySvg];
+    const children: string[] = [...before, ...bodyEls, ...after];
 
     if (showLabels) {
       for (const lbl of s.labels) {
@@ -109,13 +115,36 @@ export function renderSchematic(q: Query, opts: RenderOptions = {}): string {
     }
 
     return el('g', { 'data-ref': s.comp.ref, class: isHl ? 'hl' : undefined }, children);
+  };
+
+  if (!hasRenderState(opts.state)) {
+    const compGroups = symbols.map(s => buildCompGroup(s, s.bodySvg));
+    const body = [
+      el('rect', { x: svgBox.x, y: svgBox.y, width: svgBox.w, height: svgBox.h, class: 'bg' }),
+      el('g', { class: 'wires' }, routed.netGroups),
+      el('g', { class: 'components' }, compGroups),
+    ];
+
+    return svgDoc('sch', svgBox, body, style);
+  }
+
+  const st = buildSchStateOverlay(q, symbols, routed.netGroups, opts.state, theme);
+  const stateCompGroups = symbols.map(s => {
+    const eff = st.compEffects.get(s.comp.ref);
+    if (!eff) return buildCompGroup(s, s.bodySvg);
+    const baseBody = eff.replaceBody0 !== undefined && s.bodySvg.length > 0
+      ? [eff.replaceBody0, ...s.bodySvg.slice(1)]
+      : s.bodySvg;
+    return buildCompGroup(s, baseBody, eff.before, eff.after);
   });
 
   const body = [
+    ...st.defs,
     el('rect', { x: svgBox.x, y: svgBox.y, width: svgBox.w, height: svgBox.h, class: 'bg' }),
-    el('g', { class: 'wires' }, routed.netGroups),
-    el('g', { class: 'components' }, compGroups),
+    el('g', { class: 'wires' }, st.netGroups),
+    el('g', { class: 'components' }, stateCompGroups),
+    ...(st.voltageBadges.length > 0 ? [el('g', { class: 'state-annotations' }, st.voltageBadges)] : []),
   ];
 
-  return svgDoc('sch', svgBox, body, style);
+  return svgDoc('sch', svgBox, body, `${style}${st.extraStyle}`);
 }

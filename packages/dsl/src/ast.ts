@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
 
-export type SectionName = 'circuit' | 'breadboard' | 'schematic' | 'pcb' | 'tests';
+export type SectionName = 'circuit' | 'breadboard' | 'schematic' | 'pcb' | 'tests' | 'code';
 
 export interface CnlCompStmt {
   kind: 'component';
@@ -71,9 +71,24 @@ export interface CnlSectionPlace {
 
 export type CompareOp = '<' | '<=' | '>' | '>=' | '=';
 
+export type ExpectMeasure =
+  | 'at'
+  | 'min'
+  | 'max'
+  | 'avg'
+  | 'final'
+  | 'rms'
+  | 'freq'
+  | 'period'
+  | 'duty'
+  | 'rise'
+  | 'fall';
+
 export interface ExpectCompare {
   kind: 'compare';
   probe: string;
+  measure?: ExpectMeasure;
+  at?: number;
   op: CompareOp;
   value: number;
   raw: string;
@@ -83,6 +98,8 @@ export interface ExpectCompare {
 export interface ExpectRange {
   kind: 'range';
   probe: string;
+  measure?: ExpectMeasure;
+  at?: number;
   min: number;
   max: number;
   minRaw: string;
@@ -127,6 +144,7 @@ export interface CnlDoc {
   pcb: CnlSectionPlace[];
   tests: TestBlock[];
   testsText?: string;
+  code: Record<string, string>;
 }
 
 export interface EditResult {

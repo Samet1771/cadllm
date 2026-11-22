@@ -27,6 +27,17 @@ import {
   rotateSchPlace,
 } from './lib/place.ts';
 import { RpcClient } from './lib/rpc.ts';
+import {
+  buildRunCommand,
+  defaultProbesForQuery,
+  deriveRenderState,
+  findButtonRefs,
+  findMcuRefs,
+  parsePressIntervals,
+  parseReadCodeOutput,
+  parseTransitionTable,
+  type ParsedSimTrace,
+} from './lib/sim.ts';
 import type {
   ActivityEntry,
   ChangedNotification,
@@ -70,9 +81,25 @@ export function App() {
   const [cnlText, setCnlText] = useState('');
   const [cnlDirty, setCnlDirty] = useState(false);
 
+  const [targetMcuRef, setTargetMcuRef] = useState<string | undefined>(undefined);
+  const [codeText, setCodeText] = useState('');
+  const [codeDirty, setCodeDirty] = useState(false);
+  const [codeLoading, setCodeLoading] = useState(false);
+
   const [checkOutput, setCheckOutput] = useState('');
   const [simOutput, setSimOutput] = useState('');
   const [simRunning, setSimRunning] = useState(false);
+  const [runDuration, setRunDuration] = useState('4s');
+  const [runPress, setRunPress] = useState('');
+  const [runProbes, setRunProbes] = useState('');
+  const [simTrace, setSimTrace] = useState<ParsedSimTrace | null>(null);
+  const [playTime, setPlayTime] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [loopPlay, setLoopPlay] = useState(false);
+  const [playSpeed, setPlaySpeed] = useState(1);
+  const [pressMode, setPressMode] = useState(false);
+  const [manualPressed, setManualPressed] = useState<Set<string>>(() => new Set());
+
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -84,6 +111,8 @@ export function App() {
   const viewportCenterRef = useRef<Pt>({ x: 12, y: 8 });
   const cnlDirtyRef = useRef(cnlDirty);
   cnlDirtyRef.current = cnlDirty;
+  const codeDirtyRef = useRef(codeDirty);
+  codeDirtyRef.current = codeDirty;
   const projectRef = useRef(state.project);
   projectRef.current = state.project;
 
@@ -106,6 +135,25 @@ export function App() {
     [libraryParts, state.parts],
   );
   const query = useMemo(() => new Query(state.circuit, resolver), [state.circuit, resolver]);
+  const mcuRefs = useMemo(() => findMcuRefs(query), [query]);
+  const buttonRefs = useMemo(() => findButtonRefs(query), [query]);
+  const defaultProbes = useMemo(() => defaultProbesForQuery(query), [query]);
+
+  const activeMcuRef = useMemo(() => {
+    if (mcuRefs.length === 0) return undefined;
+    if (selectedRef) {
+      const selMatch = mcuRefs.find(r => r.toUpperCase() === selectedRef.toUpperCase());
+      if (selMatch) return selMatch;
+    }
+    if (targetMcuRef) {
+      const tgtMatch = mcuRefs.find(r => r.toUpperCase() === targetMcuRef.toUpperCase());
+      if (tgtMatch) return tgtMatch;
+    }
+    return mcuRefs[0];
+  }, [mcuRefs, selectedRef, targetMcuRef]);
+
+  const activeMcuRefRef = useRef(activeMcuRef);
+  activeMcuRefRef.current = activeMcuRef;
 
   const pushToast = useCallback((text: string, source: ToastMessage['source'] = 'ui') => {
     const id = nextIdRef.current++;
@@ -125,7 +173,11 @@ export function App() {
 
   const triggerExternalHighlight = useCallback((notifications: ChangedNotification[]) => {
     if (notifications.length === 0) return;
-    const allItems = notifications.flatMap(n => deltaToHighlight(n.delta));
+    const extraCodeRefs = notifications.flatMap(n => {
+      const m = n.summary.match(/\bcode\s+([A-Za-z0-9_]+)/i);
+      return m ? [m[1]!] : [];
+    });
+    const allItems = [...notifications.flatMap(n => deltaToHighlight(n.delta)), ...extraCodeRefs];
     if (allItems.length > 0) {
       setHighlight([...new Set(allItems)]);
       if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
@@ -139,7 +191,23 @@ export function App() {
     }
   }, [pushToast]);
 
-  const refreshWorkspace = useCallback(async (forceCnlSync = false) => {
+  const loadMcuCode = useCallback(async (ref: string, force = false) => {
+    const rpc = rpcRef.current;
+    if (!rpc) return;
+    if (!force && codeDirtyRef.current) return;
+    setCodeLoading(true);
+    try {
+      const res = await rpc.call<string>('read', { code: ref });
+      setCodeText(parseReadCodeOutput(res, ref));
+      setCodeDirty(false);
+    } catch {
+      // Ignore if component was just removed
+    } finally {
+      setCodeLoading(false);
+    }
+  }, []);
+
+  const refreshWorkspace = useCallback(async (forceSync = false) => {
     const rpc = rpcRef.current;
     if (!rpc) return;
     try {
@@ -150,14 +218,31 @@ export function App() {
         rpc.call<string>('check', {}),
       ]);
       setCheckOutput(checkRes);
-      if (forceCnlSync || !cnlDirtyRef.current) {
+      if (forceSync || !cnlDirtyRef.current) {
         setCnlText(stripReadHeader(readRes));
         setCnlDirty(false);
+      }
+      const mcu = activeMcuRefRef.current;
+      if (mcu && (forceSync || !codeDirtyRef.current)) {
+        const codeRes = await rpc.call<string>('read', { code: mcu });
+        setCodeText(parseReadCodeOutput(codeRes, mcu));
+        setCodeDirty(false);
       }
     } catch (err) {
       pushActivity(err instanceof Error ? err.message : String(err), 'ui', undefined, 'error');
     }
   }, [pushActivity]);
+
+  // Reload code when active MCU selection or connection settles.
+  useEffect(() => {
+    if (status === 'connecting' || status === 'disconnected') return;
+    if (!activeMcuRef) {
+      setCodeText('');
+      setCodeDirty(false);
+      return;
+    }
+    void loadMcuCode(activeMcuRef, true);
+  }, [activeMcuRef, state.project, status, loadMcuCode]);
 
   const handleChanged = useCallback((n: ChangedNotification) => {
     const summary = n.summary || n.label || '(updated)';
@@ -256,6 +341,38 @@ export function App() {
     return () => clearTimeout(timer);
   }, [partQuery, resolver, status]);
 
+  // Real-time simulation playback timer.
+  useEffect(() => {
+    if (!isPlaying || !simTrace) return;
+    let rafId = 0;
+    let lastTs = performance.now();
+
+    const tick = (now: number) => {
+      const dt = Math.min(0.1, Math.max(0, (now - lastTs) / 1000)) * playSpeed;
+      lastTs = now;
+      setPlayTime(prev => {
+        const next = prev + dt;
+        if (next >= simTrace.duration) {
+          if (loopPlay && simTrace.duration > 0) {
+            return next % simTrace.duration;
+          }
+          setIsPlaying(false);
+          return simTrace.duration;
+        }
+        return next;
+      });
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [isPlaying, loopPlay, playSpeed, simTrace]);
+
+  const pressIntervals = useMemo(() => parsePressIntervals(runPress), [runPress]);
+  const simState = useMemo(
+    () => deriveRenderState(query, simTrace, playTime, pressIntervals, manualPressed),
+    [query, simTrace, playTime, pressIntervals, manualPressed],
+  );
+
   const runMutation = useCallback(async (method: string, params: Record<string, unknown>, syncCnl = false): Promise<string | undefined> => {
     const rpc = rpcRef.current;
     if (!rpc) return undefined;
@@ -350,6 +467,21 @@ export function App() {
     void refreshWorkspace(true);
   }, [refreshWorkspace]);
 
+  const handleSaveCode = useCallback(() => {
+    if (!activeMcuRef) return;
+    void runMutation('edit', { code: { ref: activeMcuRef, text: codeText } }).then(res => {
+      if (res !== undefined) {
+        setCodeDirty(false);
+        pushToast(`Saved ${activeMcuRef} sketch`, 'ui');
+      }
+    });
+  }, [activeMcuRef, codeText, pushToast, runMutation]);
+
+  const handleSyncCode = useCallback(() => {
+    if (!activeMcuRef) return;
+    void loadMcuCode(activeMcuRef, true);
+  }, [activeMcuRef, loadMcuCode]);
+
   const handleUndo = useCallback(() => {
     void runMutation('history', { op: 'undo' }, true);
   }, [runMutation]);
@@ -385,6 +517,9 @@ export function App() {
       const res = await rpc.call<string>('project', params);
       pushActivity(res, 'ui', parseRevFromText(res), 'info');
       setSelectedRef(undefined);
+      setSimTrace(null);
+      setIsPlaying(false);
+      setPlayTime(0);
       await refreshWorkspace(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -400,11 +535,38 @@ export function App() {
     try {
       const res = await rpc.call<string>('sim', { run });
       setSimOutput(res);
+      const parsed = parseTransitionTable(res);
+      if (parsed) {
+        setSimTrace(parsed);
+        setPlayTime(0);
+        setIsPlaying(true);
+      } else {
+        setIsPlaying(false);
+      }
     } catch (err) {
       setSimOutput(`error: ${err instanceof Error ? err.message : String(err)}`);
+      setIsPlaying(false);
     } finally {
       setSimRunning(false);
     }
+  }, []);
+
+  const handleRunTransient = useCallback(() => {
+    const probes = runProbes.trim() || defaultProbes.join(',');
+    const cmd = buildRunCommand({ duration: runDuration, press: runPress, probes });
+    void handleRunSim(cmd);
+  }, [defaultProbes, handleRunSim, runDuration, runPress, runProbes]);
+
+  const handleManualPress = useCallback((ref: string, down: boolean) => {
+    const up = ref.toUpperCase();
+    setManualPressed(prev => {
+      const has = prev.has(up);
+      if (down === has) return prev;
+      const next = new Set(prev);
+      if (down) next.add(up);
+      else next.delete(up);
+      return next;
+    });
   }, []);
 
   const handleRunCheck = useCallback(async () => {
@@ -426,7 +588,7 @@ export function App() {
         target instanceof HTMLInputElement ||
         target instanceof HTMLTextAreaElement ||
         target instanceof HTMLSelectElement ||
-        (target instanceof HTMLElement && target.isContentEditable)
+        (target instanceof HTMLElement && (target.isContentEditable || target.closest('.cm-editor')))
       ) {
         return;
       }
@@ -501,21 +663,34 @@ export function App() {
           theme={effectiveTheme}
           selectedRef={selectedRef}
           highlight={highlight}
+          simState={simState}
+          pressMode={pressMode}
           onViewChange={setActiveView}
           onSelectRef={setSelectedRef}
           onMovePart={handleMovePart}
           onConnectPins={handleConnectPins}
           onViewportCenterChange={pt => { viewportCenterRef.current = pt; }}
           onNotice={msg => pushToast(msg, 'ui')}
+          onPressButton={handleManualPress}
         />
 
         <Inspector
           query={query}
           activeView={activeView}
           selectedRef={selectedRef}
+          theme={effectiveTheme}
           cnlText={cnlText}
           cnlDirty={cnlDirty}
           projectHeader={`${state.project} rev=${state.rev}`}
+          mcuRefs={mcuRefs}
+          activeMcuRef={activeMcuRef}
+          codeText={codeText}
+          codeDirty={codeDirty}
+          codeLoading={codeLoading}
+          onSelectMcuRef={ref => setTargetMcuRef(ref)}
+          onCodeChange={text => { setCodeText(text); setCodeDirty(true); }}
+          onSaveCode={handleSaveCode}
+          onSyncCode={handleSyncCode}
           onCnlChange={text => { setCnlText(text); setCnlDirty(true); }}
           onApplyCnl={handleApplyCnl}
           onSyncCnl={handleSyncCnl}
@@ -531,8 +706,36 @@ export function App() {
         simOutput={simOutput}
         simRunning={simRunning}
         activity={activity}
+        hasMcu={mcuRefs.length > 0}
+        buttonRefs={buttonRefs}
+        runDuration={runDuration}
+        runPress={runPress}
+        runProbes={runProbes}
+        defaultProbes={defaultProbes}
+        trace={simTrace}
+        playTime={playTime}
+        isPlaying={isPlaying}
+        loopPlay={loopPlay}
+        playSpeed={playSpeed}
+        pressMode={pressMode}
+        manualPressed={manualPressed}
+        onRunDurationChange={setRunDuration}
+        onRunPressChange={setRunPress}
+        onRunProbesChange={setRunProbes}
+        onRunTransient={handleRunTransient}
         onRunSim={cmd => void handleRunSim(cmd)}
         onRunCheck={() => void handleRunCheck()}
+        onPlayToggle={() => {
+          if (!simTrace) return;
+          if (!isPlaying && playTime >= simTrace.duration) setPlayTime(0);
+          setIsPlaying(p => !p);
+        }}
+        onStopPlayback={() => { setIsPlaying(false); setPlayTime(0); }}
+        onSeek={t => { setIsPlaying(false); setPlayTime(t); }}
+        onLoopChange={setLoopPlay}
+        onSpeedChange={setPlaySpeed}
+        onPressModeChange={setPressMode}
+        onManualPress={handleManualPress}
       />
 
       <ToastContainer

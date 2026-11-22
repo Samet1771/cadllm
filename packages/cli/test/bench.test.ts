@@ -14,6 +14,7 @@ describe('MCP token benchmark', () => {
     expect(r.schemaTokens).toBeLessThan(SCHEMA_BUDGET);
     for (const t of r.tasks) {
       expect(t.ok, t.transcript.join('\n')).toBe(true);
+      if (t.skipped) continue;
       expect(t.calls).toBeLessThanOrEqual(6);
       const budget = t.name.startsWith('layout:') ? LAYOUT_BUDGET : TASK_BUDGET;
       expect(t.inTokens + t.outTokens, t.name).toBeLessThan(budget);

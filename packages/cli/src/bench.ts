@@ -1,18 +1,36 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { errorText } from '@cadllm/core';
 import { Engine } from '@cadllm/engine';
 import { builtinPartsDir, loadLibrary } from '@cadllm/library';
 import { createServer } from '@cadllm/mcp';
+import { compileSketch } from '@cadllm/sim-mcu';
 
 /** Rough token estimate (≈4 chars/token for English and code). Good enough to catch regressions. */
 export const tokens = (s: string): number => Math.ceil(s.length / 4);
 
 interface Step { tool: string; args: Record<string, unknown> }
 interface StepOut { tool: string; text: string; imgTokens: number }
-interface Task { name: string; steps: Step[]; pass: (outputs: StepOut[]) => boolean }
+interface Task {
+  name: string;
+  steps: Step[];
+  pass: (outputs: StepOut[]) => boolean;
+  skipIf?: () => Promise<string | undefined>;
+}
 
 const LED_CNL = 'BAT1 battery 5; R1 res 150; D1 led red\nVCC: BAT1.+ R1.1; LA: R1.2 D1.A; GND: D1.K BAT1.-';
+
+async function mcuUnavailableReason(): Promise<string | undefined> {
+  try {
+    await compileSketch('void setup() {}\nvoid loop() {}');
+    return undefined;
+  } catch (err) {
+    const msg = errorText(err);
+    if (/not implemented|arduino-cli/i.test(msg)) return msg;
+    return undefined;
+  }
+}
 
 function pngImageTokens(base64: string): number {
   const buf = Buffer.from(base64, 'base64');
@@ -20,7 +38,7 @@ function pngImageTokens(base64: string): number {
   return Math.ceil((buf.readUInt32BE(16) * buf.readUInt32BE(20)) / 750);
 }
 
-/** The M0 goal tasks (FOUNDATION §11) and M1 layout/render task, scripted the way an agent would do them. */
+/** The M0 goal tasks (FOUNDATION §11), M1 layout/render task, and M2 blink task. */
 export const TASKS: Task[] = [
   {
     name: 'led: 5V LED, prove I < 20 mA',
@@ -64,12 +82,33 @@ Q0: U1.1Q; Q0N: U1.1QN U1.1D U1.2CLK; Q1: U1.2Q; Q1N: U1.2QN U1.2D` } },
       outs.filter(o => o.tool === 'layout').every(o => !/\berr\b/.test(o.text))
       && outs.some(o => o.tool === 'render' && o.imgTokens > 0),
   },
+  {
+    name: 'blink: write the sketch, run it, verify the period',
+    skipIf: mcuUnavailableReason,
+    steps: [
+      {
+        tool: 'edit',
+        args: {
+          cnl: 'U1 arduino_uno; R1 res 220; D1 led red\nD13: U1.D13 R1.1; LA: R1.2 D1.A; GND: D1.K U1.GND',
+          code: {
+            ref: 'U1',
+            text: 'void setup() { pinMode(13, OUTPUT); }\nvoid loop() { digitalWrite(13, HIGH); delay(1000); digitalWrite(13, LOW); delay(1000); }',
+          },
+        },
+      },
+      { tool: 'sim', args: { run: 'run 4s probes=D13; expect period(D13) 1.9s..2.1s' } },
+    ],
+    pass: outs => {
+      const last = outs.at(-1)?.text ?? '';
+      return last.includes('PASS') && !last.includes('FAIL');
+    },
+  },
 ];
 
 export interface BenchResult {
   schemaTokens: number;
   tools: number;
-  tasks: { name: string; calls: number; inTokens: number; outTokens: number; imgTokens: number; ok: boolean; transcript: string[] }[];
+  tasks: { name: string; calls: number; inTokens: number; outTokens: number; imgTokens: number; ok: boolean; skipped?: string; transcript: string[] }[];
 }
 
 export async function runBench(): Promise<BenchResult> {
@@ -89,6 +128,11 @@ export async function runBench(): Promise<BenchResult> {
         const { tools } = await client.listTools();
         toolsCount = tools.length;
         schemaTokens = tokens(JSON.stringify(tools));
+      }
+      const skipped = task.skipIf ? await task.skipIf() : undefined;
+      if (skipped) {
+        tasks.push({ name: task.name, calls: 0, inTokens: 0, outTokens: 0, imgTokens: 0, ok: true, skipped, transcript: [`SKIP: ${skipped}`] });
+        continue;
       }
       let inTokens = 0;
       let outTokens = 0;
@@ -120,6 +164,10 @@ export function formatBench(r: BenchResult): string {
   const lines = [`tools ${r.tools} · schema ≈${r.schemaTokens} tok`];
   const w = Math.max(...r.tasks.map(t => t.name.length));
   for (const t of r.tasks) {
+    if (t.skipped) {
+      lines.push(`SKIP ${t.name.padEnd(w)}  (${t.skipped})`);
+      continue;
+    }
     const img = t.imgTokens ? `  img ≈${t.imgTokens}` : '';
     lines.push(`${t.ok ? 'PASS' : 'FAIL'} ${t.name.padEnd(w)}  calls ${t.calls}  in ≈${t.inTokens}  out ≈${t.outTokens}  total ≈${t.inTokens + t.outTokens} tok${img}`);
   }

@@ -8,9 +8,9 @@ import { z } from 'zod';
 type Content = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
 type Text = { content: Content[]; isError?: boolean };
 
-const reply = (fn: () => string | Content[]): Text => {
+const reply = async (fn: () => string | Content[] | Promise<string | Content[]>): Promise<Text> => {
   try {
-    const out = fn();
+    const out = await fn();
     return { content: typeof out === 'string' ? [{ type: 'text', text: out }] : out };
   } catch (err) {
     return { content: [{ type: 'text', text: `error: ${errorText(err)}` }], isError: true };
@@ -35,6 +35,7 @@ export const TOOLS = {
       since: z.number().int().optional().describe('only changes after this rev'),
       place: z.boolean().optional().describe('include @view placements'),
       tests: z.boolean().optional().describe('include [tests]'),
+      code: z.string().optional().describe('MCU ref sketch'),
     },
   },
   edit: {
@@ -42,6 +43,7 @@ export const TOOLS = {
     inputSchema: {
       cnl: z.string().optional().describe('e.g. "R1 res 330; VCC: BAT1.+ R1.1"'),
       tests: z.string().optional().describe('replace [tests] text ("" clears)'),
+      code: z.object({ ref: z.string(), text: z.string() }).optional().describe('MCU sketch ("" clears)'),
       dry_run: z.boolean().optional(),
       if_rev: z.number().int().optional(),
     },

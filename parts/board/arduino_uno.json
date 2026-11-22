@@ -157,6 +157,12 @@
       "type": "power_out"
     }
   ],
+  "sim": [
+    {
+      "kind": "mcu",
+      "ref": "avr8js-uno"
+    }
+  ],
   "footprints": [
     "Arduino_Uno_R3"
   ],

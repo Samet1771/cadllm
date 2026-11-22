@@ -515,6 +515,7 @@ function buildPartList(): PartDef[] {
       category: 'board',
       refPrefix: 'A',
       pins: arduinoUnoPins(),
+      sim: [{ kind: 'mcu', ref: 'avr8js-uno' }],
       footprints: ['Arduino_Uno_R3'],
       keywords: ['arduino', 'uno', 'atmega328p', 'mcu', 'board', 'dev'],
     },

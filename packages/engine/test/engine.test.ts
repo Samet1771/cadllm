@@ -14,6 +14,10 @@ const err = (fn: () => unknown): string => {
   try { fn(); } catch (e) { return errorText(e); }
   throw new Error('expected an error');
 };
+const errAsync = async (fn: () => Promise<unknown>): Promise<string> => {
+  try { await fn(); } catch (e) { return errorText(e); }
+  throw new Error('expected an error');
+};
 
 const LED = 'BAT1 battery 5; R1 res 220; D1 led red\nVCC: BAT1.+ R1.1; LA: R1.2 D1.A; GND: D1.K BAT1.-';
 const COUNTER = `BAT1 battery 5; U1 74hc74; SW1 button; R1 res 10k; SW2 button; R2 res 10k
@@ -57,39 +61,66 @@ describe('edit and read', () => {
 });
 
 describe('sim', () => {
-  it('solves dc and checks expects with enough precision near the bound', () => {
+  it('solves dc and checks expects with enough precision near the bound', async () => {
     const e = engine();
     e.edit({ cnl: LED });
-    expect(e.sim({ run: 'dc; expect I(D1) < 20m; expect V(LA) 1.8..2.2' })).toMatch(/^untitled rev=1 I\(D1\) 13\.\dm {2}V\(LA\) \S+\nPASS I\(D1\) 13\.\dm < 20m\nPASS V\(LA\) \S+ in 1\.8\.\.2\.2$/);
+    expect(await e.sim({ run: 'dc; expect I(D1) < 20m; expect V(LA) 1.8..2.2' })).toMatch(/^untitled rev=1 I\(D1\) 13\.\dm {2}V\(LA\) \S+\nPASS I\(D1\) 13\.\dm < 20m\nPASS V\(LA\) \S+ in 1\.8\.\.2\.2$/);
     e.edit({ cnl: '~R1 resistance=150' });
-    expect(e.sim({ run: 'dc; expect I(D1) < 19m' })).toMatch(/\nFAIL I\(D1\) 20m not < 19m$/);
-    expect(e.sim({ run: 'dc; expect I(D1) < 20m' })).toMatch(/\nPASS I\(D1\) 19\.9\d+m < 20m$/);
+    expect(await e.sim({ run: 'dc; expect I(D1) < 19m' })).toMatch(/\nFAIL I\(D1\) 20m not < 19m$/);
+    expect(await e.sim({ run: 'dc; expect I(D1) < 20m' })).toMatch(/\nPASS I\(D1\) 19\.9\d+m < 20m$/);
   });
 
-  it('runs a truth table and a clocked counter', () => {
+  it('runs a truth table and a clocked counter', async () => {
     const e = engine();
     e.project({ op: 'open', path: 'examples/nand-led.cnl' });
-    expect(e.sim({ run: 'logic in=SW1 out=Y; expect table; 0 -> 1; 1 -> 1' })).toBe('nand-led rev=0 SW1 -> Y\n0   -> 1\n1   -> 0\nFAIL table: 1 -> 0 (want 1)');
+    expect(await e.sim({ run: 'logic in=SW1 out=Y; expect table; 0 -> 1; 1 -> 1' })).toBe('nand-led rev=0 SW1 -> Y\n0   -> 1\n1   -> 0\nFAIL table: 1 -> 0 (want 1)');
     e.project({ op: 'new', name: 'ctr' });
     e.edit({ cnl: COUNTER });
-    expect(e.sim({ run: 'logic clock=SW1 reset=SW2 cycles=4 out=Q1,Q0; expect table; 0 -> 0 0; 1 -> 0 1; 2 -> 1 0; 3 -> 1 1; 4 -> 0 0' }))
+    expect(await e.sim({ run: 'logic clock=SW1 reset=SW2 cycles=4 out=Q1,Q0; expect table; 0 -> 0 0; 1 -> 0 1; 2 -> 1 0; 3 -> 1 1; 4 -> 0 0' }))
       .toBe('ctr rev=1 n -> Q1 Q0\n0 -> 0  0\n1 -> 0  1\n2 -> 1  0\n3 -> 1  1\n4 -> 0  0\nPASS table 5 rows');
   });
 
-  it('runs file tests and reports unknown analyses', () => {
+  it('runs file tests and validates tran/ac/run inputs', async () => {
     const e = engine();
     e.project({ op: 'open', path: 'examples/nand-led.cnl' });
-    expect(e.sim({ run: 'test' })).toBe('nand-led rev=0 2 tests: 2 pass\nPASS "nand truth table"\nPASS "led current"');
-    expect(e.sim({ run: 'test led*' })).toBe('nand-led rev=0 1 tests: 1 pass\nPASS "led current"');
-    expect(err(() => e.sim({ run: 'tran 10m' }))).toBe('tran analysis is not available yet · use dc (or op) and logic');
+    expect(await e.sim({ run: 'test' })).toBe('nand-led rev=0 2 tests: 2 pass\nPASS "nand truth table"\nPASS "led current"');
+    expect(await e.sim({ run: 'test led*' })).toBe('nand-led rev=0 1 tests: 1 pass\nPASS "led current"');
+    expect(await e.sim({ run: 'run 10m probes=Y' })).toBe('nand-led rev=0 t   Y\n10n 1');
+    expect(await errAsync(() => e.sim({ run: 'run' }))).toMatch(/^run needs duration/);
+    expect(await errAsync(() => e.sim({ run: 'tran' }))).toMatch(/^tran needs stop duration/);
+    expect(await errAsync(() => e.sim({ run: 'ac dec 10 100 10' }))).toMatch(/^bad ac stop frequency/);
   });
 
-  it('stores tests through edit and rejects bad test text', () => {
+  it('edits, reads, moves, deletes, and round-trips MCU [code] sections', () => {
+    const e = engine();
+    e.project({ op: 'new', name: 'uno' });
+    expect(e.edit({ cnl: 'U1 arduino_uno', code: { ref: 'U1', text: 'void setup() {}\nvoid loop() {}' } }))
+      .toMatch(/^ok rev=1 \+U1 · code U1/);
+    expect(e.read({ code: 'U1' })).toBe('uno rev=1 [code U1]\nvoid setup() {}\nvoid loop() {}');
+    e.edit({ cnl: 'mv U1 U2' });
+    expect(e.read({ code: 'U2' })).toBe('uno rev=2 [code U2]\nvoid setup() {}\nvoid loop() {}');
+    expect(e.edit({ code: { ref: 'U2', text: '' } })).toMatch(/^ok rev=3 · code -U2/);
+    expect(e.read({ code: 'U2' })).toBe('uno rev=3 U2: no code');
+  });
+
+  it('loads and round-trips M2 blink and button-led examples via loadCircuit/saveCnl', () => {
+    for (const file of ['examples/blink.cnl', 'examples/button-led.cnl']) {
+      const e = engine();
+      const raw = readFileSync(resolve(repo, file), 'utf8').replace(/\r\n/g, '\n');
+      e.project({ op: 'open', path: file });
+      expect(e.read({ code: 'U1' })).toContain('void setup()');
+      const dir = mkdtempSync(join(tmpdir(), 'cadllm-ex-'));
+      e.project({ op: 'save', path: join(dir, 'out.cnl') });
+      expect(readFileSync(join(dir, 'out.cnl'), 'utf8')).toBe(raw);
+    }
+  });
+
+  it('stores tests through edit and rejects bad test text', async () => {
     const e = engine();
     e.edit({ cnl: LED });
     expect(err(() => e.edit({ tests: 'test "x"\n  expect I(D1) <' }))).toMatch(/^line 2: cannot parse expect/);
     e.edit({ tests: 'test "cur"\n  dc\n  expect I(D1) < 20m' });
-    expect(e.sim({ run: 'test' })).toBe('untitled rev=2 1 tests: 1 pass\nPASS "cur"');
+    expect(await e.sim({ run: 'test' })).toBe('untitled rev=2 1 tests: 1 pass\nPASS "cur"');
     expect(e.read({ tests: true })).toContain('[tests]\ntest "cur"');
   });
 });
@@ -171,7 +202,6 @@ describe('views', () => {
   it('reports breadboard shorts in check and in the edit tail', () => {
     const e = engine();
     e.edit({ cnl: LED });
-    // R1.1 (VCC) at A10 and D1.A (LA) at B10 share strip A-E 10.
     const tail = e.edit({ cnl: 'R1 @bb:A10-A14; D1 @bb:B10-B12' });
     expect(tail).toMatch(/^ok rev=2 ~D1 ~R1 · 1 err/);
     const errs = e.check().split('\n').filter(l => l.startsWith('err '));
@@ -196,14 +226,14 @@ describe('library tools', () => {
     expect(err(() => e.help({ topic: 'nope' }))).toMatch(/^no help topic nope · topics:/);
   });
 
-  it('every help example builds and simulates', () => {
+  it('every help example builds and simulates', async () => {
     const blocks = engine().help({ topic: 'examples' }).split('\n\n');
     for (const block of blocks) {
       const e = engine();
       const lines = block.split('\n').slice(1);
       const run = lines.pop()!.replace(/^check: sim run="(.*)"$/, '$1');
       e.edit({ cnl: lines.join('\n') });
-      expect(e.sim({ run }), block).not.toMatch(/FAIL|error/);
+      expect(await e.sim({ run }), block).not.toMatch(/FAIL|error/);
     }
   });
 });

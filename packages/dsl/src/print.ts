@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
 import { isEmptyDelta, naturalCompare, type Component, type Doc, type Net, type Query, type TxInfo } from '@cadllm/core';
-import { TESTS_META_KEY } from './edit.ts';
+import { CODE_META_PREFIX, TESTS_META_KEY } from './edit.ts';
 import { quoteValue } from './lexer.ts';
 
 export interface PrintOptions {
@@ -132,7 +132,7 @@ export function saveCnl(doc: Doc): string {
 
   const headerLines = ['cnl 1'];
   const metaKeys = Object.keys(q.circuit.meta)
-    .filter(k => k !== TESTS_META_KEY)
+    .filter(k => k !== TESTS_META_KEY && !k.startsWith(CODE_META_PREFIX))
     .sort(naturalCompare);
   if (metaKeys.length > 0) {
     headerLines.push(`meta ${metaKeys.map(k => `${k}=${quoteValue(q.circuit.meta[k]!)}`).join(' ')}`);
@@ -154,6 +154,16 @@ export function saveCnl(doc: Doc): string {
       sectionLines.push(`${c.ref.padEnd(maxRef)} @${formattedPos}`);
     }
     blocks.push(sectionLines.join('\n'));
+  }
+
+  const codeEntries = Object.keys(q.circuit.meta)
+    .filter(k => k.startsWith(CODE_META_PREFIX))
+    .map(k => ({ ref: k.slice(CODE_META_PREFIX.length), code: q.circuit.meta[k]! }))
+    .filter(e => e.code.trim() !== '')
+    .sort((a, b) => naturalCompare(a.ref, b.ref));
+  for (const { ref, code } of codeEntries) {
+    const trimmed = code.replace(/\r\n/g, '\n').replace(/^\n+|\n+$/g, '');
+    blocks.push(`[code ${ref}]\n${trimmed}`);
   }
 
   const testsText = q.circuit.meta[TESTS_META_KEY];

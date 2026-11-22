@@ -126,6 +126,39 @@ describe('saveCnl and loadCircuit round-trip', () => {
     expect(parseCnl(saveCnl(doc)).tests).toHaveLength(2);
   });
 
+  it('round-trips [code U1], moves code on mv, and drops code on remove', () => {
+    const src = `cnl 1
+meta name=sketch
+
+[circuit]
+U1 74hc00
+
+[code U1]
+void setup() {
+  pinMode(13, OUTPUT);
+}
+
+void loop() {}
+
+[tests]
+test "run"
+  run 2s probes=D13
+  expect D13@1s = 1
+`;
+    const doc = loadCircuit(src, lib);
+    expect(doc.read.circuit.meta['__code:U1']).toContain('pinMode(13, OUTPUT);');
+    expect(saveCnl(doc)).toBe(src);
+
+    doc.transact(tx => applyEdit(tx, 'mv U1 U2'));
+    expect(doc.read.circuit.meta['__code:U1']).toBeUndefined();
+    expect(doc.read.circuit.meta['__code:U2']).toContain('pinMode(13, OUTPUT);');
+    expect(saveCnl(doc)).toContain('[code U2]');
+
+    doc.transact(tx => applyEdit(tx, '-U2'));
+    expect(doc.read.circuit.meta['__code:U2']).toBeUndefined();
+    expect(saveCnl(doc)).not.toContain('[code');
+  });
+
   it('round-trips placements across breadboard, schematic, and pcb, plus props and cap', () => {
     const d1 = new Doc(lib);
     d1.transact(tx => applyEdit(tx, `

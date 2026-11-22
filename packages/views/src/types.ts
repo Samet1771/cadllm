@@ -14,6 +14,13 @@ export interface Pt {
  */
 export const UNIT = 10;
 
+export interface RenderState {
+  /** Net logic levels ('0'|'1'|'X'|'Z') or analog voltages (number) keyed by net name. */
+  nets?: Record<string, '0' | '1' | 'X' | 'Z' | number>;
+  /** Component visual state (e.g. lit LEDs, pressed buttons) keyed by ref. */
+  parts?: Record<string, { on?: boolean; level?: number }>;
+}
+
 export interface RenderOptions {
   /** Refs or "net:NAME" to emphasize, e.g. what another client just changed. */
   highlight?: string[];
@@ -22,6 +29,8 @@ export interface RenderOptions {
   theme?: 'light' | 'dark';
   /** Ref/value text next to parts. Default true. */
   labels?: boolean;
+  /** Optional simulation state for live view rendering (LED glow, pressed buttons, net coloring). */
+  state?: RenderState;
 }
 
 export type ViewIssueCode =

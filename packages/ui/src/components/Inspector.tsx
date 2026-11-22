@@ -2,14 +2,25 @@
 import { useEffect, useState } from 'react';
 import { pinKey, type Component, type PartDef, type Query } from '@cadllm/core';
 import type { ViewId } from '@cadllm/views';
+import { CodeEditor } from './CodeEditor.tsx';
 
 interface InspectorProps {
   query: Query;
   activeView: ViewId;
   selectedRef: string | undefined;
+  theme: 'light' | 'dark';
   cnlText: string;
   cnlDirty: boolean;
   projectHeader: string;
+  mcuRefs: string[];
+  activeMcuRef: string | undefined;
+  codeText: string;
+  codeDirty: boolean;
+  codeLoading: boolean;
+  onSelectMcuRef: (ref: string) => void;
+  onCodeChange: (text: string) => void;
+  onSaveCode: () => void;
+  onSyncCode: () => void;
   onCnlChange: (text: string) => void;
   onApplyCnl: () => void;
   onSyncCnl: () => void;
@@ -181,9 +192,19 @@ export function Inspector({
   query,
   activeView,
   selectedRef,
+  theme,
   cnlText,
   cnlDirty,
   projectHeader,
+  mcuRefs,
+  activeMcuRef,
+  codeText,
+  codeDirty,
+  codeLoading,
+  onSelectMcuRef,
+  onCodeChange,
+  onSaveCode,
+  onSyncCode,
   onCnlChange,
   onApplyCnl,
   onSyncCnl,
@@ -194,6 +215,20 @@ export function Inspector({
 }: InspectorProps) {
   const comp = selectedRef ? query.component(selectedRef) : undefined;
   const part = comp ? query.parts.get(comp.part) : undefined;
+  const hasMcu = mcuRefs.length > 0;
+  const [editorTab, setEditorTab] = useState<'code' | 'cnl'>(hasMcu ? 'code' : 'cnl');
+
+  useEffect(() => {
+    if (!hasMcu) {
+      setEditorTab('cnl');
+    } else if (selectedRef && mcuRefs.some(r => r.toUpperCase() === selectedRef.toUpperCase())) {
+      setEditorTab('code');
+    } else if (editorTab === 'cnl' && hasMcu && !cnlDirty) {
+      // Auto-open Code tab when loading a circuit that has an MCU.
+      setEditorTab('code');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasMcu, selectedRef]);
 
   return (
     <aside className="panel panel-right">
@@ -222,33 +257,96 @@ export function Inspector({
 
       <section className="cnl-pane">
         <div className="panel-header">
-          <span className="panel-title">CNL</span>
-          <span className="muted-tag">{projectHeader}</span>
-          <div className="btn-group">
-            {cnlDirty && (
-              <button type="button" className="btn btn-sm" onClick={onSyncCnl} title="Reload circuit text">
-                Sync
+          <div className="view-tabs">
+            {hasMcu && (
+              <button
+                type="button"
+                className={`view-tab ${editorTab === 'code' ? 'active' : ''}`}
+                onClick={() => setEditorTab('code')}
+              >
+                Code{codeDirty ? ' •' : ''}
               </button>
             )}
-            <button type="button" className="btn btn-sm btn-primary" onClick={onApplyCnl} title="Apply CNL edit (Ctrl+Enter)">
-              Apply
+            <button
+              type="button"
+              className={`view-tab ${editorTab === 'cnl' ? 'active' : ''}`}
+              onClick={() => setEditorTab('cnl')}
+            >
+              CNL{cnlDirty ? ' •' : ''}
             </button>
           </div>
+
+          {editorTab === 'code' && activeMcuRef ? (
+            <div className="btn-group">
+              {mcuRefs.length > 1 ? (
+                <select
+                  aria-label="MCU target"
+                  className="select select-sm"
+                  value={activeMcuRef}
+                  onChange={e => onSelectMcuRef(e.target.value)}
+                >
+                  {mcuRefs.map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              ) : (
+                <span className="muted-tag">{activeMcuRef}</span>
+              )}
+              {codeDirty && (
+                <button type="button" className="btn btn-sm" onClick={onSyncCode} title="Reload sketch from workspace">
+                  Sync
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                disabled={codeLoading}
+                onClick={onSaveCode}
+                title="Save sketch (Ctrl+S)"
+              >
+                Save
+              </button>
+            </div>
+          ) : (
+            <>
+              <span className="muted-tag">{projectHeader}</span>
+              <div className="btn-group">
+                {cnlDirty && (
+                  <button type="button" className="btn btn-sm" onClick={onSyncCnl} title="Reload circuit text">
+                    Sync
+                  </button>
+                )}
+                <button type="button" className="btn btn-sm btn-primary" onClick={onApplyCnl} title="Apply CNL edit (Ctrl+Enter)">
+                  Apply
+                </button>
+              </div>
+            </>
+          )}
         </div>
-        <textarea
-          className="cnl-editor"
-          spellCheck={false}
-          value={cnlText}
-          onChange={e => onCnlChange(e.target.value)}
-          onKeyDown={e => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-              e.preventDefault();
-              onApplyCnl();
-            }
-          }}
-          placeholder={'# Add/edit parts & nets:\nR1 res 330 @sch:10,6\n~R1 resistance=470\nVCC: BAT1.+ R1.1'}
-          aria-label="CNL text editor"
-        />
+
+        {editorTab === 'code' && activeMcuRef ? (
+          <CodeEditor
+            value={codeText}
+            theme={theme}
+            onChange={onCodeChange}
+            onSave={onSaveCode}
+          />
+        ) : (
+          <textarea
+            className="cnl-editor"
+            spellCheck={false}
+            value={cnlText}
+            onChange={e => onCnlChange(e.target.value)}
+            onKeyDown={e => {
+              if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                onApplyCnl();
+              }
+            }}
+            placeholder={'# Add/edit parts & nets:\nR1 res 330 @sch:10,6\n~R1 resistance=470\nVCC: BAT1.+ R1.1'}
+            aria-label="CNL text editor"
+          />
+        )}
       </section>
     </aside>
   );

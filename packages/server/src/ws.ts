@@ -46,7 +46,7 @@ function parseToolParams(name: ToolName, params: unknown): Record<string, unknow
   return out;
 }
 
-function callTool(engine: Engine, name: ToolName, params: unknown): string {
+async function callTool(engine: Engine, name: ToolName, params: unknown): Promise<string> {
   const args = parseToolParams(name, params);
   switch (name) {
     case 'project': return engine.project(args as Parameters<Engine['project']>[0]);
@@ -170,7 +170,7 @@ export function attachWebSocket(
       }
     });
 
-    ws.on('message', raw => {
+    ws.on('message', async raw => {
       let msg: JsonRpcRequest;
       try {
         msg = JSON.parse(raw.toString()) as JsonRpcRequest;
@@ -197,7 +197,7 @@ export function attachWebSocket(
         if (method === 'render') {
           replyResult(callRender(engine, msg.params));
         } else if (TOOL_NAMES.has(method)) {
-          replyResult(callTool(engine, method as ToolName, msg.params));
+          replyResult(await callTool(engine, method as ToolName, msg.params));
         } else if (method === 'state') {
           replyResult(buildState(engine, workspace));
         } else if (method === 'library') {

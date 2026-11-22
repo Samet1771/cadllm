@@ -100,6 +100,11 @@ export class Tx extends Query {
     for (const id of this.connectedPinIds(comp)) this.detach(pinKey(comp.id, id));
     delete this.circuit.components[comp.id];
     this.byRef.delete(comp.ref.toUpperCase());
+    for (const k of Object.keys(this.circuit.meta)) {
+      if (k.startsWith('__code:') && k.slice(7).toUpperCase() === comp.ref.toUpperCase()) {
+        delete this.circuit.meta[k];
+      }
+    }
   }
 
   renameComponent(ref: string, newRef: string): void {
@@ -107,9 +112,17 @@ export class Tx extends Query {
     if (!REF_RE.test(newRef)) throw new CadError('invalid_name', `bad ref "${newRef}"`, 'letters, digits, _; start with a letter');
     const other = this.component(newRef);
     if (other && other !== comp) throw new CadError('duplicate_ref', `${newRef} already exists`);
-    this.byRef.delete(comp.ref.toUpperCase());
+    const oldRef = comp.ref;
+    this.byRef.delete(oldRef.toUpperCase());
     comp.ref = newRef;
     this.byRef.set(newRef.toUpperCase(), comp);
+    for (const k of Object.keys(this.circuit.meta)) {
+      if (k.startsWith('__code:') && k.slice(7).toUpperCase() === oldRef.toUpperCase()) {
+        const code = this.circuit.meta[k]!;
+        delete this.circuit.meta[k];
+        this.circuit.meta[`__code:${newRef}`] = code;
+      }
+    }
   }
 
   /**
