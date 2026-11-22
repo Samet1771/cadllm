@@ -173,7 +173,7 @@ The MCP `read` tool returns only `[circuit]` by default, so the expensive geomet
 | `part` | one part's pins/props/models/footprints | `74hc00` → pin table, one line per pin |
 | `check` | ERC / DRC / view-consistency | → `2 err 1 warn` + one line per issue |
 | `sim` | run analysis or file tests | `op` / `tran 10m probes=V(LA)` / `logic` / `test "*"` |
-| `layout` | auto place / wire / route per view | `view=bb op=place,wire` → `ok placed 5, wired 7, 0 unroutable` |
+| `layout` | auto-place per view (wires are derived) | `view=bb` → `ok rev=3 placed 5 in bb: … · 0 issues` |
 | `render` | view → PNG/SVG for vision models, optional crop | `view=sch` → image |
 | `export` | gerber / kicad / spice / bom / svg | → file path + summary |
 | `history` | undo / redo / log / checkpoint / restore | `log n=5` |

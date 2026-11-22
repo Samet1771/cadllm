@@ -13,6 +13,7 @@
     "@cadllm/dsl": "*",
     "@cadllm/library": "*",
     "@cadllm/sim-analog": "*",
-    "@cadllm/sim-digital": "*"
+    "@cadllm/sim-digital": "*",
+    "@cadllm/views": "*"
   }
 }

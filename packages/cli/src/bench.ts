@@ -9,20 +9,32 @@ import { createServer } from '@cadllm/mcp';
 export const tokens = (s: string): number => Math.ceil(s.length / 4);
 
 interface Step { tool: string; args: Record<string, unknown> }
-interface Task { name: string; steps: Step[]; pass: (last: string) => boolean }
+interface StepOut { tool: string; text: string; imgTokens: number }
+interface Task { name: string; steps: Step[]; pass: (outputs: StepOut[]) => boolean }
 
-/** The two M0 goal tasks (FOUNDATION §11), scripted the way an agent would do them. */
+const LED_CNL = 'BAT1 battery 5; R1 res 150; D1 led red\nVCC: BAT1.+ R1.1; LA: R1.2 D1.A; GND: D1.K BAT1.-';
+
+function pngImageTokens(base64: string): number {
+  const buf = Buffer.from(base64, 'base64');
+  if (buf.length < 24) return 0;
+  return Math.ceil((buf.readUInt32BE(16) * buf.readUInt32BE(20)) / 750);
+}
+
+/** The M0 goal tasks (FOUNDATION §11) and M1 layout/render task, scripted the way an agent would do them. */
 export const TASKS: Task[] = [
   {
     name: 'led: 5V LED, prove I < 20 mA',
     steps: [
       { tool: 'find', args: { q: 'led' } },
-      { tool: 'edit', args: { cnl: 'BAT1 battery 5; R1 res 150; D1 led red\nVCC: BAT1.+ R1.1; LA: R1.2 D1.A; GND: D1.K BAT1.-' } },
+      { tool: 'edit', args: { cnl: LED_CNL } },
       { tool: 'sim', args: { run: 'dc probes=I(D1)' } },
       { tool: 'edit', args: { cnl: '~R1 resistance=220' } },
       { tool: 'sim', args: { run: 'dc; expect I(D1) < 20m' } },
     ],
-    pass: last => last.includes('PASS') && !last.includes('FAIL'),
+    pass: outs => {
+      const last = outs.at(-1)?.text ?? '';
+      return last.includes('PASS') && !last.includes('FAIL');
+    },
   },
   {
     name: 'counter: 2-bit counter, verify sequence',
@@ -35,53 +47,81 @@ CLK: SW1.2 R1.1 U1.1CLK; RST: U1.1CLR U1.2CLR R2.1 SW2.1
 Q0: U1.1Q; Q0N: U1.1QN U1.1D U1.2CLK; Q1: U1.2Q; Q1N: U1.2QN U1.2D` } },
       { tool: 'sim', args: { run: 'logic clock=SW1 reset=SW2 cycles=4 out=Q1,Q0; expect table; 1 -> 0 1; 2 -> 1 0; 3 -> 1 1; 4 -> 0 0' } },
     ],
-    pass: last => last.includes('PASS table') && !last.includes('FAIL'),
+    pass: outs => {
+      const last = outs.at(-1)?.text ?? '';
+      return last.includes('PASS table') && !last.includes('FAIL');
+    },
+  },
+  {
+    name: 'layout: place the LED circuit on both views and look at it',
+    steps: [
+      { tool: 'edit', args: { cnl: LED_CNL } },
+      { tool: 'layout', args: { view: 'sch' } },
+      { tool: 'layout', args: { view: 'bb' } },
+      { tool: 'render', args: { view: 'bb', width: 600 } },
+    ],
+    pass: outs =>
+      outs.filter(o => o.tool === 'layout').every(o => !/\berr\b/.test(o.text))
+      && outs.some(o => o.tool === 'render' && o.imgTokens > 0),
   },
 ];
 
 export interface BenchResult {
   schemaTokens: number;
   tools: number;
-  tasks: { name: string; calls: number; inTokens: number; outTokens: number; ok: boolean; transcript: string[] }[];
+  tasks: { name: string; calls: number; inTokens: number; outTokens: number; imgTokens: number; ok: boolean; transcript: string[] }[];
 }
 
 export async function runBench(): Promise<BenchResult> {
-  const engine = new Engine({ library: loadLibrary([builtinPartsDir]) });
-  const [a, b] = InMemoryTransport.createLinkedPair();
-  await createServer(engine).connect(a);
-  const client = new Client({ name: 'bench', version: '0' });
-  await client.connect(b);
-  try {
-    const { tools } = await client.listTools();
-    const result: BenchResult = { schemaTokens: tokens(JSON.stringify(tools)), tools: tools.length, tasks: [] };
-    for (const task of TASKS) {
+  const library = loadLibrary([builtinPartsDir]);
+  let schemaTokens = 0;
+  let toolsCount = 0;
+  const tasks: BenchResult['tasks'] = [];
+
+  for (const task of TASKS) {
+    const engine = new Engine({ library });
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    await createServer(engine).connect(a);
+    const client = new Client({ name: 'bench', version: '0' });
+    await client.connect(b);
+    try {
+      if (toolsCount === 0) {
+        const { tools } = await client.listTools();
+        toolsCount = tools.length;
+        schemaTokens = tokens(JSON.stringify(tools));
+      }
       let inTokens = 0;
       let outTokens = 0;
-      let last = '';
+      let imgTokens = 0;
       let ok = true;
+      const outputs: StepOut[] = [];
       const transcript: string[] = [];
       for (const s of task.steps) {
         const res = await client.callTool({ name: s.tool, arguments: s.args });
-        const text = (res.content as { type: string; text?: string }[]).map(c => c.text ?? '').join('\n');
+        const content = res.content as { type: string; text?: string; data?: string }[];
+        const text = content.filter(c => c.type === 'text').map(c => c.text ?? '').join('\n');
+        const stepImg = content.filter(c => c.type === 'image' && c.data).reduce((sum, c) => sum + pngImageTokens(c.data!), 0);
         inTokens += tokens(JSON.stringify({ name: s.tool, arguments: s.args }));
         outTokens += tokens(text);
+        imgTokens += stepImg;
         if (res.isError) ok = false;
-        last = text;
-        transcript.push(`> ${s.tool} ${JSON.stringify(s.args)}\n${text}`);
+        outputs.push({ tool: s.tool, text, imgTokens: stepImg });
+        transcript.push(`> ${s.tool} ${JSON.stringify(s.args)}\n${text}${stepImg ? `\n[image ≈${stepImg} tok]` : ''}`);
       }
-      result.tasks.push({ name: task.name, calls: task.steps.length, inTokens, outTokens, ok: ok && task.pass(last), transcript });
+      tasks.push({ name: task.name, calls: task.steps.length, inTokens, outTokens, imgTokens, ok: ok && task.pass(outputs), transcript });
+    } finally {
+      await client.close();
     }
-    return result;
-  } finally {
-    await client.close();
   }
+  return { schemaTokens, tools: toolsCount, tasks };
 }
 
 export function formatBench(r: BenchResult): string {
   const lines = [`tools ${r.tools} · schema ≈${r.schemaTokens} tok`];
   const w = Math.max(...r.tasks.map(t => t.name.length));
   for (const t of r.tasks) {
-    lines.push(`${t.ok ? 'PASS' : 'FAIL'} ${t.name.padEnd(w)}  calls ${t.calls}  in ≈${t.inTokens}  out ≈${t.outTokens}  total ≈${t.inTokens + t.outTokens} tok`);
+    const img = t.imgTokens ? `  img ≈${t.imgTokens}` : '';
+    lines.push(`${t.ok ? 'PASS' : 'FAIL'} ${t.name.padEnd(w)}  calls ${t.calls}  in ≈${t.inTokens}  out ≈${t.outTokens}  total ≈${t.inTokens + t.outTokens} tok${img}`);
   }
   return lines.join('\n');
 }

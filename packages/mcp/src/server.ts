@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { Resvg } from '@resvg/resvg-js';
 import { errorText } from '@cadllm/core';
 import type { Engine } from '@cadllm/engine';
 import { z } from 'zod';
 
-type Text = { content: { type: 'text'; text: string }[]; isError?: boolean };
+type Content = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
+type Text = { content: Content[]; isError?: boolean };
 
-const reply = (fn: () => string): Text => {
+const reply = (fn: () => string | Content[]): Text => {
   try {
-    return { content: [{ type: 'text', text: fn() }] };
+    const out = fn();
+    return { content: typeof out === 'string' ? [{ type: 'text', text: out }] : out };
   } catch (err) {
     return { content: [{ type: 'text', text: `error: ${errorText(err)}` }], isError: true };
   }
@@ -61,15 +64,39 @@ export const TOOLS = {
       run: z.string().describe('"dc; expect I(D1) < 20m" · "logic in=SW1 out=Y" · "test"'),
     },
   },
+  layout: {
+    description: 'Auto-place parts in a view (sch=schematic, bb=breadboard). Wires are derived.',
+    inputSchema: {
+      view: z.enum(['sch', 'bb']),
+      refs: z.string().optional().describe('only these, e.g. "R1,D1"'),
+      all: z.boolean().optional().describe('re-place placed parts too'),
+    },
+  },
+  render: {
+    description: 'View as a PNG image.',
+    inputSchema: {
+      view: z.enum(['sch', 'bb']),
+      select: z.string().optional().describe('crop to refs: "U1,R2"'),
+      width: z.number().int().optional().describe('px, default 800'),
+    },
+  },
   history: {
     description: 'undo, redo, or log of recent revisions.',
     inputSchema: { op: z.enum(['undo', 'redo', 'log']), n: z.number().int().optional() },
   },
   help: {
-    description: 'Grammar and examples. Start here. Topics: edit sim tests project examples parts.',
+    description: 'Grammar and examples. Start here. Topics: edit sim tests project views examples parts.',
     inputSchema: { topic: z.string().optional() },
   },
 } as const;
+
+function renderPng(engine: Engine, a: { view: 'sch' | 'bb'; select?: string; width?: number }): Content[] {
+  const select = a.select?.split(/[\s,]+/).filter(Boolean);
+  const svg = engine.renderSvg({ view: a.view, ...(select ? { select } : {}) });
+  const width = Math.min(Math.max(a.width ?? 800, 200), 2000);
+  const png = new Resvg(svg, { fitTo: { mode: 'width', value: width }, background: 'white' }).render().asPng();
+  return [{ type: 'text', text: engine.renderSummary(a.view) }, { type: 'image', data: Buffer.from(png).toString('base64'), mimeType: 'image/png' }];
+}
 
 export function createServer(engine: Engine, version = '0.0.0'): McpServer {
   const server = new McpServer(
@@ -84,6 +111,8 @@ export function createServer(engine: Engine, version = '0.0.0'): McpServer {
   server.registerTool('part', t.part, a => reply(() => engine.part(a)));
   server.registerTool('check', t.check, () => reply(() => engine.check()));
   server.registerTool('sim', t.sim, a => reply(() => engine.sim(a)));
+  server.registerTool('layout', t.layout, a => reply(() => engine.layout(a)));
+  server.registerTool('render', t.render, a => reply(() => renderPng(engine, a)));
   server.registerTool('history', t.history, a => reply(() => engine.history(a)));
   server.registerTool('help', t.help, a => reply(() => engine.help(a)));
   return server;

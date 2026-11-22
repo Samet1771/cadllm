@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, extname, isAbsolute, resolve } from 'node:path';
-import { basicChecks, CadError, Doc, naturalCompare, type ChangeSource, type Delta, type Issue, type PartDef, type TxInfo } from '@cadllm/core';
+import { basicChecks, CadError, Doc, naturalCompare, type ChangeSource, type Delta, type PartDef, type TxInfo } from '@cadllm/core';
 import { applyEdit, loadCircuit, printCircuit, printDelta, saveCnl, TESTS_META_KEY } from '@cadllm/dsl';
 import type { Library } from '@cadllm/library';
+import { view, viewChecks, type RenderOptions } from '@cadllm/views';
 import { help } from './help.ts';
 import { parseTests, runAdhoc, runFileTests } from './sim.ts';
 import { Workspace, type Project } from './workspace.ts';
@@ -208,7 +209,7 @@ export class Engine {
   /** New issues worth showing after an edit: all errors, warnings only for touched items. */
   private issueTail(p: Project, d: Delta): string {
     const touched = new Set([...d.added, ...d.changed, ...d.renamed.map(r => r[1]), ...d.netsAdded, ...d.netsChanged].map(s => s.toUpperCase()));
-    const issues = basicChecks(p.doc.read);
+    const issues = allIssues(p);
     const shown = issues.filter(i => i.level === 'error' || i.at.some(a => touched.has(a.split('.')[0]!.toUpperCase())));
     const errs = issues.filter(i => i.level === 'error').length;
     const warns = issues.length - errs;
@@ -242,11 +243,58 @@ export class Engine {
     }).join('\n\n');
   }
 
+  // ---- views ----
+
+  /** Auto-place unplaced (or all / the given) components in a view, as one undoable edit. */
+  layout(args: { view: string; refs?: string; all?: boolean }): string {
+    const p = this.current;
+    const v = this.view(args.view);
+    const refs = args.refs?.split(/[\s,]+/).filter(Boolean);
+    const r = v.autoPlace(p.doc.read, { ...(refs ? { refs } : {}), ...(args.all ? { all: true } : {}) });
+    const entries = Object.entries(r.place);
+    const notes = r.notes.length ? ` · ${r.notes.join(' · ')}` : '';
+    if (!entries.length) return `${this.tag(p)} nothing to place in ${v.id} (all placed; all=true re-places)${notes}`;
+    const info = p.doc.transact(tx => {
+      for (const [ref, place] of entries) tx.updateComponent(ref, { place: { [v.id]: place } });
+    }, { label: `layout ${v.id}`, source: this.source });
+    const issues = v.check(p.doc.read);
+    const errs = issues.filter(i => i.level === 'error');
+    const tail = issues.length
+      ? ` · ${errs.length ? `${errs.length} err ` : ''}${issues.length - errs.length ? `${issues.length - errs.length} warn` : ''}`.trimEnd() + `: ${issues.slice(0, MAX_ISSUES).map(i => i.message).join('; ')}`
+      : ' · 0 issues';
+    return `ok rev=${info.rev} placed ${entries.length} in ${v.id}: ${entries.map(([ref, pl]) => `${ref}@${pl}`).join(' ')}${tail}`;
+  }
+
+  /** SVG of a view of the current project. */
+  renderSvg(args: { view: string } & RenderOptions): string {
+    const { view: id, ...opts } = args;
+    return this.view(id).render(this.current.doc.read, opts);
+  }
+
+  /** One line describing what renderSvg draws (for the MCP render tool's text part). */
+  renderSummary(viewId: string): string {
+    const p = this.current;
+    const v = this.view(viewId);
+    const comps = p.doc.read.components();
+    const placed = comps.filter(c => c.place[v.id] !== undefined && p.doc.read.parts.get(c.part)?.views?.[v.id] !== 'none');
+    const hidden = comps.filter(c => p.doc.read.parts.get(c.part)?.views?.[v.id] === 'none').length;
+    const unplaced = comps.length - placed.length - hidden;
+    return `${this.tag(p)} ${v.id}: ${placed.length} parts drawn${unplaced ? ` · ${unplaced} unplaced (layout view=${v.id})` : ''}`;
+  }
+
+  private view(id: string) {
+    try {
+      return view(id);
+    } catch {
+      throw new CadError('invalid', `unknown view ${id}`, 'views: sch bb');
+    }
+  }
+
   // ---- check / sim ----
 
   check(): string {
     const p = this.current;
-    const issues = basicChecks(p.doc.read);
+    const issues = allIssues(p);
     const errs = issues.filter(i => i.level === 'error');
     const head = `${this.tag(p)} ${errs.length} err ${issues.length - errs.length} warn`;
     return [head, ...issues.map(formatIssue)].join('\n');
@@ -295,7 +343,12 @@ export class Engine {
   }
 }
 
-function formatIssue(i: Issue): string {
+function allIssues(p: Project) {
+  const q = p.doc.read;
+  return [...basicChecks(q), ...viewChecks(q)];
+}
+
+function formatIssue(i: { level: string; message: string }): string {
   return `${i.level === 'error' ? 'err ' : 'warn'} ${i.message}`;
 }
 

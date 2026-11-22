@@ -152,6 +152,36 @@ describe('shared workspace', () => {
   });
 });
 
+describe('views', () => {
+  it('lays out both views as undoable edits and renders SVG', () => {
+    const e = engine();
+    e.project({ op: 'open', path: 'examples/nand-led.cnl' });
+    expect(e.renderSummary('bb')).toBe('nand-led rev=0 bb: 0 parts drawn · 6 unplaced (layout view=bb)');
+    expect(e.layout({ view: 'sch' })).toMatch(/^ok rev=1 placed 6 in sch: .*U1@\S+ .* · 0 issues$/);
+    expect(e.layout({ view: 'bb' })).toMatch(/^ok rev=2 placed 6 in bb: .*U1@E\d+.* · 0 issues$/);
+    expect(e.layout({ view: 'bb' })).toBe('nand-led rev=2 nothing to place in bb (all placed; all=true re-places)');
+    expect(e.read({ select: 'U1', place: true })).toMatch(/^nand-led rev=2\nU1 74hc00 @bb:E\d+ @sch:-?\d+,-?\d+$/);
+    expect(e.renderSvg({ view: 'sch' })).toMatch(/^<svg [^>]*data-view="sch"/);
+    expect(e.renderSvg({ view: 'bb', highlight: ['R1'] })).toContain('data-ref="R1"');
+    expect(e.renderSummary('bb')).toBe('nand-led rev=2 bb: 6 parts drawn');
+    expect(e.history({ op: 'undo' })).toMatch(/^ok rev=3 ~BAT1 ~D1/);
+    expect(err(() => e.layout({ view: 'pcb' }))).toBe('unknown view pcb · views: sch bb');
+  });
+
+  it('reports breadboard shorts in check and in the edit tail', () => {
+    const e = engine();
+    e.edit({ cnl: LED });
+    // R1.1 (VCC) at A10 and D1.A (LA) at B10 share strip A-E 10.
+    const tail = e.edit({ cnl: 'R1 @bb:A10-A14; D1 @bb:B10-B12' });
+    expect(tail).toMatch(/^ok rev=2 ~D1 ~R1 · 1 err/);
+    const errs = e.check().split('\n').filter(l => l.startsWith('err '));
+    expect(errs).toHaveLength(1);
+    expect(errs[0]).toMatch(/LA/);
+    expect(errs[0]).toMatch(/VCC/);
+    expect(tail).toContain(errs[0]!.slice(5));
+  });
+});
+
 describe('library tools', () => {
   it('finds parts and describes them', () => {
     const e = engine();

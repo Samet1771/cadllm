@@ -39,6 +39,16 @@ Edits go to the current project; the first edit creates "untitled".
 fork = sandbox copy (becomes current); merge = write the fork back into its parent.
 read since=<rev> shows what changed (e.g. by a human in the UI).
 history op=undo|redo|log [n].`,
+  views: `Views are drawn from the netlist; wires are derived (never edited).
+layout view=sch|bb [refs=R1,D1] [all=true]   auto-place parts
+render view=sch|bb [select=U1,R2]            PNG to look at
+place by hand in edit lines:
+  R1 @sch:12,4,90        schematic grid x,y[,rot][,m] (rot 0/90/180/270, m = mirror)
+  U1 @bb:E10             breadboard: DIP pin 1 at E10, straddling the channel
+  R1 @bb:F20-F24         2-pin part between two holes; holes A1..J30, rails T+1 T-1 B+1 B-1
+  BAT1 @bb:-8,2          off-board part, in hole pitches from the board's top-left
+Breadboard strips (A-E, F-J per column) and rails connect pins; jumpers are added for the rest.
+check reports bb_short when one strip holds two nets.`,
   examples: `LED with resistor (5 V, ~9 mA):
 BAT1 battery 5; R1 res 330; D1 led red
 VCC: BAT1.+ R1.1; LA: R1.2 D1.A; GND: D1.K BAT1.-
@@ -60,9 +70,9 @@ check: sim run="logic clock=SW1 reset=SW2 cycles=4 out=Q1,Q0"`,
 export function help(topic: string | undefined, lib: Library): string {
   const t = topic?.trim().toLowerCase();
   if (!t) {
-    return `CadLLM: circuits as text (CNL). Tools: project read edit find part check sim history help.
+    return `CadLLM: circuits as text (CNL). Tools: project read edit find part check sim layout render history help.
 Typical: find → part → edit (CNL lines) → sim (dc/logic + expect) → fix → project save.
-Topics: help topic=edit|sim|tests|project|examples|parts
+Topics: help topic=edit|sim|tests|project|views|examples|parts
 ${TOPICS.examples!.split('\n\n')[0]}`;
   }
   if (t === 'parts') {

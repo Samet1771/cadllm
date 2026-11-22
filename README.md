@@ -4,7 +4,7 @@
 
 AI agents drive it over MCP with very few tokens: build circuits, simulate them and test them, headless. Humans get a breadboard / schematic / PCB UI on the same engine.
 
-**Status:** M0 (engine + MCP), pre-alpha. See [docs/FOUNDATION.md](docs/FOUNDATION.md) for the design.
+**Status:** M1 (engine + MCP + web UI + live co-editing), pre-alpha. See [docs/FOUNDATION.md](docs/FOUNDATION.md) for the design.
 
 ## Development
 
@@ -17,11 +17,24 @@ npm run bench      # MCP token benchmark
 node packages/cli/src/main.ts test examples/nand-led.cnl
 ```
 
+### Web UI & live co-editing
+
+Build the browser UI once, then start `cadllm serve`:
+
+```sh
+npm run build -w @cadllm/ui
+node packages/cli/src/main.ts serve [file.cnl]
+```
+
+Open http://127.0.0.1:5170 in a browser.
+
 Use it from an MCP client (Claude Code shown):
 
 ```sh
 claude mcp add cadllm -- node /path/to/CadLLm/packages/cli/src/main.ts mcp
 ```
+
+When `cadllm serve` is running, the registered `cadllm` MCP server automatically attaches to it so AI edits and browser edits share one workspace live (pass `--standalone` for an isolated stdio session).
 
 ## License
 

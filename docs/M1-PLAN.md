@@ -20,11 +20,13 @@ Goal (FOUNDATION §11): **a human and an AI co-edit one project live.** `cadllm 
 | engine `Workspace` + per-client `Engine` sessions, events, attribution | ✅ |
 | `@cadllm/views` contract (`types.ts`, `svg.ts`, `index.ts`, stubs) | ✅ |
 | M1 dependencies installed (ws, react, vite, resvg) | ✅. **Agents must not run `npm install`.** |
-| WP1 schematic view | ⏳ |
-| WP2 breadboard view | ⏳ |
-| WP3 server | ⏳ |
-| WP4 UI | ⏳ |
-| WP5 MCP `render`/`layout`, view checks in `check`/`edit`, integration (Claude) | ⏳ after WP1+WP2 |
+| WP1 schematic view | ✅ ANSI symbols for every family, A* router with junctions and power flags, signal-flow autoPlace, checks. nand-led PNG reviewed; label/font/LED fix-ups applied. Exports extra helpers (`parseSchPlace`, `buildSymbol`) that `views/index.ts` does not re-export. |
+| WP2 breadboard view | ✅ Board geometry, place strings, rails per board half with left-edge bridge jumpers, MST jumpers, label collision avoidance, wider autoPlace spacing (0 errors on `examples/nand-led.cnl`), `bb-led.golden.svg`, determinism. |
+| WP3 server | ✅ `startServer`/`main`, `/ws` JSON-RPC (`layout`, `render` SVG), stateful `/mcp` (closes non-initialize sessions), Host/Origin guard, `/health`, `serve.json` (`CADLLM_STATE_DIR` override), `findServe`, `proxyStdio`, co-edit integration test. |
+| WP4 UI | ✅ Typecheck and build pass. Checked in the browser against WP3: AI edits over `/mcp` toast and highlight, drag sends a place edit, shared undo works, and "Auto layout" calls the live `layout` RPC. |
+| WP5 MCP `render`/`layout`, view checks, CLI integration, bench | ✅ Engine `layout` / `renderSvg` / `renderSummary` + `views` help topic + `viewChecks` in `check` and `edit` issue tail; MCP `layout` and PNG `render` (`@resvg/resvg-js`, `loadSystemFonts` enabled by default) — 11 tools; `cadllm serve` and `cadllm mcp` auto-attach (`--standalone` to disable); co-edit test covers `layout` + PNG `render` + non-init POST leak fix; bench adds `layout`+`render` task. |
+| Benchmark (11 tools) | `schema ≈1092 tok` (budget `<1200`); `led` `5 calls · 140 tok`; `counter` `4 calls · 279 tok`; `layout` (sch+bb+render width=600) `4 calls · 121 text tok · img ≈256 tok`. |
+| Open items (post-M1) | Manual wire waypoints (extra place data); per-gate ANSI IC units (ICs currently use box symbols); breadboard label overlap (e.g. `D1` label near jumpers on dense layouts). |
 
 ## Ground rules (in addition to M0's)
 - Read first: `docs/FOUNDATION.md` §3–§5, this file, `packages/views/src/types.ts` (the contract), `packages/core/src/*.ts`.
