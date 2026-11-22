@@ -1,75 +1,83 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, extname, isAbsolute, resolve } from 'node:path';
-import { basicChecks, CadError, Doc, naturalCompare, REF_RE, type ChangeSource, type Delta, type Issue, type PartDef, type TxInfo } from '@cadllm/core';
+import { basicChecks, CadError, Doc, naturalCompare, type ChangeSource, type Delta, type Issue, type PartDef, type TxInfo } from '@cadllm/core';
 import { applyEdit, loadCircuit, printCircuit, printDelta, saveCnl, TESTS_META_KEY } from '@cadllm/dsl';
 import type { Library } from '@cadllm/library';
 import { help } from './help.ts';
 import { parseTests, runAdhoc, runFileTests } from './sim.ts';
-
-interface LogEntry {
-  rev: number;
-  source: ChangeSource;
-  label?: string;
-  summary: string;
-}
-
-interface Project {
-  name: string;
-  doc: Doc;
-  path?: string;
-  parent?: { name: string; rev: number };
-  log: LogEntry[];
-  savedRev: number;
-}
+import { Workspace, type Project } from './workspace.ts';
 
 export interface EngineOptions {
-  library: Library;
-  /** Base directory for relative paths. Defaults to process.cwd(). */
+  /** Shared projects. Omit for a private workspace over `library`. */
+  workspace?: Workspace;
+  library?: Library;
+  /** Base directory for relative paths of a private workspace. Defaults to process.cwd(). */
   root?: string;
-  /** Attribution for edits made through this engine. */
+  /** Attribution for edits made through this session. */
   source?: ChangeSource;
 }
 
 const MAX_ISSUES = 8;
 const MAX_LOG = 50;
 
-/** Text-in, text-out circuit engine behind the MCP tools and the CLI. Methods throw CadError(s) on bad input. */
+/**
+ * One client session (an MCP connection, a UI tab, the CLI) over a shared Workspace: its own current
+ * project and edit attribution. Text in, text out; methods throw CadError(s) on bad input.
+ */
 export class Engine {
-  readonly library: Library;
-  readonly root: string;
+  readonly workspace: Workspace;
   readonly source: ChangeSource;
-  private projects = new Map<string, Project>();
   private currentName: string | undefined;
 
   constructor(opts: EngineOptions) {
-    this.library = opts.library;
-    this.root = opts.root ?? process.cwd();
+    if (!opts.workspace && !opts.library) throw new Error('Engine needs a workspace or a library');
+    this.workspace = opts.workspace ?? new Workspace({ library: opts.library!, ...(opts.root ? { root: opts.root } : {}) });
     this.source = opts.source ?? 'ai';
   }
 
+  get library(): Library {
+    return this.workspace.library;
+  }
+
+  get root(): string {
+    return this.workspace.root;
+  }
+
+  /** Name of this session's current project (created as "untitled" on first use). */
+  get projectName(): string {
+    return this.current.name;
+  }
+
+  /** The current project's document, for structured access (UI state, rendering). */
+  get doc(): Doc {
+    return this.current.doc;
+  }
+
   private get current(): Project {
-    if (this.currentName === undefined) this.create('untitled');
-    return this.projects.get(this.currentName!)!;
+    if (this.currentName !== undefined && !this.workspace.has(this.currentName)) {
+      const gone = this.currentName;
+      this.currentName = undefined;
+      throw new CadError('invalid', `project ${gone} was closed by another client`, `open: ${this.workspace.names().join(' ') || 'none'} · project op=use name=…`);
+    }
+    if (this.currentName === undefined) {
+      this.currentName = this.workspace.has('untitled') ? 'untitled' : this.create('untitled').name;
+    }
+    return this.workspace.get(this.currentName);
   }
 
   private get(name: string): Project {
-    const p = this.projects.get(name);
-    if (!p) throw new CadError('invalid', `no open project ${name}`, `open: ${[...this.projects.keys()].join(' ') || 'none'}`);
+    return this.workspace.get(name);
+  }
+
+  private create(name: string, doc?: Doc, extra: Partial<Omit<Project, 'name' | 'doc'>> = {}): Project {
+    const p = this.workspace.create(name, doc, extra);
+    this.currentName = name;
     return p;
   }
 
-  private create(name: string, doc = new Doc(this.library), extra: Partial<Project> = {}): Project {
-    if (!REF_RE.test(name.replace(/[-.]/g, '_'))) throw new CadError('invalid_name', `bad project name ${name}`, 'letters, digits, - _ .');
-    if (this.projects.has(name)) throw new CadError('invalid_name', `project ${name} is already open`, `project op=use name=${name}`);
-    const p: Project = { name, doc, log: [], savedRev: 0, ...extra };
-    doc.on(info => {
-      p.log.push({ rev: info.rev, source: info.source, ...(info.label ? { label: info.label } : {}), summary: printDelta(info, doc.read).replace(/^ok rev=\d+ ?/, '') });
-      if (p.log.length > MAX_LOG) p.log.shift();
-    });
-    this.projects.set(name, p);
-    this.currentName = name;
-    return p;
+  private freshName(base: string): string {
+    return this.workspace.freshName(base);
   }
 
   private path(p: string): string {
@@ -107,8 +115,8 @@ export class Engine {
         return `ok saved ${p.path} ${this.tag(p)}`;
       }
       case 'list': {
-        if (!this.projects.size) return 'no projects (edit creates "untitled")';
-        return [...this.projects.values()].map(p => {
+        if (!this.workspace.names().length) return 'no projects (edit creates "untitled")';
+        return this.workspace.all().map(p => {
           const mark = p.name === this.currentName ? '*' : ' ';
           const from = p.parent ? ` fork of ${p.parent.name}@${p.parent.rev}` : '';
           const dirty = p.doc.rev !== p.savedRev ? ' unsaved' : '';
@@ -132,14 +140,14 @@ export class Engine {
         const parent = this.get(fork.parent.name);
         const note = parent.doc.rev !== fork.parent.rev ? ` · ${parent.name} changed since fork (rev ${fork.parent.rev}→${parent.doc.rev}); fork wins` : '';
         const info = parent.doc.replace(fork.doc.toJSON(), { label: `merge ${fork.name}`, source: this.source });
-        this.projects.delete(fork.name);
+        this.workspace.close(fork.name);
         this.currentName = parent.name;
         return `${printDelta(info, parent.doc.read)} project=${parent.name} (merged ${fork.name})${note}`;
       }
       case 'close': {
         const p = args.name ? this.get(args.name) : this.current;
-        this.projects.delete(p.name);
-        if (this.currentName === p.name) this.currentName = this.projects.keys().next().value;
+        this.workspace.close(p.name);
+        if (this.currentName === p.name) this.currentName = this.workspace.names()[0];
         const warn = p.doc.rev !== p.savedRev ? ` (discarded unsaved rev=${p.doc.rev})` : '';
         return `ok closed ${p.name}${warn}${this.currentName ? ` · project=${this.currentName}` : ''}`;
       }
@@ -151,12 +159,6 @@ export class Engine {
   private need(v: string | undefined, op: string): string {
     if (!v) throw new CadError('invalid', `${op} needs name`);
     return v;
-  }
-
-  private freshName(base: string): string {
-    const clean = base.replace(/[^A-Za-z0-9_.-]/g, '_').replace(/^[^A-Za-z]/, 'p$&');
-    if (!this.projects.has(clean)) return clean;
-    for (let i = 2; ; i++) if (!this.projects.has(`${clean}${i}`)) return `${clean}${i}`;
   }
 
   // ---- read ----
@@ -274,7 +276,7 @@ export class Engine {
     switch (args.op) {
       case 'undo':
       case 'redo': {
-        const info: TxInfo | undefined = args.op === 'undo' ? p.doc.undo() : p.doc.redo();
+        const info: TxInfo | undefined = args.op === 'undo' ? p.doc.undo(this.source) : p.doc.redo(this.source);
         if (!info) return `nothing to ${args.op} (${this.tag(p)})`;
         return printDelta(info, p.doc.read);
       }

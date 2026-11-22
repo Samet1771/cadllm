@@ -35,6 +35,10 @@
     "DO-35",
     "SOD-123"
   ],
+  "views": {
+    "sch": "diode",
+    "bb": "axial"
+  },
   "keywords": [
     "diode",
     "1n4148",

@@ -17,6 +17,10 @@
       "ref": "probe"
     }
   ],
+  "views": {
+    "sch": "probe",
+    "bb": "probe"
+  },
   "keywords": [
     "probe",
     "test",

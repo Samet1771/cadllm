@@ -13,6 +13,8 @@
     "@cadllm/engine": "*",
     "@cadllm/library": "*",
     "@modelcontextprotocol/sdk": "^1.32.2",
-    "zod": "^4.6.7"
+    "zod": "^4.6.7",
+    "@cadllm/views": "*",
+    "@resvg/resvg-js": "^2.6.2"
   }
 }

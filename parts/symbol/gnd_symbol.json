@@ -21,6 +21,10 @@
       "ref": "const"
     }
   ],
+  "views": {
+    "sch": "gnd",
+    "bb": "none"
+  },
   "keywords": [
     "ground",
     "gnd",

@@ -43,6 +43,8 @@ export interface PartDef {
   valueProp?: string;
   sim?: SimModelRef[];
   footprints?: string[];
+  /** Drawing family per view, resolved by @cadllm/views: { sch: "resistor", bb: "axial" }. "none" = not drawn in that view. */
+  views?: { sch?: string; bb?: string };
   keywords?: string[];
   /** Source of the pinout, required for ICs and transistors. */
   datasheet?: string;

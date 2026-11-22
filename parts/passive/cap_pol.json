@@ -41,6 +41,10 @@
     "CP_Radial_D5.0mm_P2.00mm",
     "CP_Radial_D8.0mm_P3.50mm"
   ],
+  "views": {
+    "sch": "capacitor_pol",
+    "bb": "radial"
+  },
   "keywords": [
     "capacitor",
     "electrolytic",

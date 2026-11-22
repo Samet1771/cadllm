@@ -78,7 +78,27 @@ const logicGate = (id: string, name: string, summary: string, datasheet: string,
   datasheet,
 });
 
+/** Drawing family per view (see @cadllm/views). Logic and IC parts default to sch:ic bb:dip. */
+const VIEWS: Record<string, [sch: string, bb: string]> = {
+  res: ['resistor', 'axial'], cap: ['capacitor', 'disc'], cap_pol: ['capacitor_pol', 'radial'], inductor: ['inductor', 'axial'],
+  pot: ['pot', 'pot'], diode: ['diode', 'axial'], zener: ['zener', 'axial'], led: ['led', 'led'],
+  battery: ['battery', 'battery'], dc_supply: ['vsource', 'supply'], switch_spst: ['switch', 'slide_switch'], button: ['button', 'button'],
+  buzzer: ['buzzer', 'buzzer'], logic_probe: ['probe', 'probe'], vcc_symbol: ['vcc', 'none'], gnd_symbol: ['gnd', 'none'],
+  npn: ['npn', 'to92'], pnp: ['pnp', 'to92'], nmos: ['nmos', 'to92'], arduino_uno: ['board', 'arduino_uno'],
+  breadboard_half: ['none', 'breadboard'], breadboard_full: ['none', 'breadboard'],
+};
+
+function withViews(p: PartDef): PartDef {
+  const v = VIEWS[p.id] ?? (p.category === 'logic' || p.category === 'ic' ? ['ic', 'dip'] : undefined);
+  if (!v) throw new Error(`gen-parts: no views for ${p.id}`);
+  return { ...p, views: { sch: v[0], bb: v[1] } };
+}
+
 export function buildParts(): PartDef[] {
+  return buildPartList().map(withViews);
+}
+
+function buildPartList(): PartDef[] {
   return [
     // passive
     {
@@ -503,7 +523,7 @@ export function buildParts(): PartDef[] {
 
 const KEY_ORDER: (keyof PartDef)[] = [
   'id', 'name', 'summary', 'category', 'refPrefix',
-  'pins', 'props', 'valueProp', 'sim', 'footprints', 'keywords', 'datasheet',
+  'pins', 'props', 'valueProp', 'sim', 'footprints', 'views', 'keywords', 'datasheet',
 ];
 
 export function serializePart(part: PartDef): string {

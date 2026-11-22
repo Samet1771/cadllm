@@ -2109,6 +2109,10 @@
   "footprints": [
     "Breadboard_Half_400"
   ],
+  "views": {
+    "sch": "none",
+    "bb": "breadboard"
+  },
   "keywords": [
     "breadboard",
     "half",

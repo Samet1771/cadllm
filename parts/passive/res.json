@@ -39,6 +39,10 @@
     "0805",
     "THT-axial"
   ],
+  "views": {
+    "sch": "resistor",
+    "bb": "axial"
+  },
   "keywords": [
     "resistor",
     "ohm",

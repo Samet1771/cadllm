@@ -160,6 +160,10 @@
   "footprints": [
     "Arduino_Uno_R3"
   ],
+  "views": {
+    "sch": "board",
+    "bb": "arduino_uno"
+  },
   "keywords": [
     "arduino",
     "uno",

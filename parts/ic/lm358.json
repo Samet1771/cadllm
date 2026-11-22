@@ -62,6 +62,10 @@
     "DIP-8",
     "SOIC-8"
   ],
+  "views": {
+    "sch": "ic",
+    "bb": "dip"
+  },
   "keywords": [
     "lm358",
     "opamp",

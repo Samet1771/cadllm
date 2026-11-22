@@ -50,6 +50,10 @@
     "LED_D3.0mm",
     "0805"
   ],
+  "views": {
+    "sch": "led",
+    "bb": "led"
+  },
   "keywords": [
     "led",
     "light",

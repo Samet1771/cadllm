@@ -133,4 +133,9 @@ describe('Library search, summaryLine, override and validatePart', () => {
       valueProp: 'missing',
     }).length).toBeGreaterThanOrEqual(5);
   });
+
+  it('every built-in part names a drawing family for both views', () => {
+    const missing = lib.all().filter(p => !p.views?.sch || !p.views?.bb).map(p => p.id);
+    expect(missing).toEqual([]);
+  });
 });

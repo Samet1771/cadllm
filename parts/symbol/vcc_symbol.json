@@ -30,6 +30,10 @@
       "ref": "const"
     }
   ],
+  "views": {
+    "sch": "vcc",
+    "bb": "none"
+  },
   "keywords": [
     "vcc",
     "vdd",

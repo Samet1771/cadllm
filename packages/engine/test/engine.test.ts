@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { errorText } from '@cadllm/core';
 import { builtinPartsDir, loadLibrary } from '@cadllm/library';
 import { describe, expect, it } from 'vitest';
-import { Engine } from '../src/index.ts';
+import { Engine, Workspace, type WorkspaceEvent } from '../src/index.ts';
 
 const library = loadLibrary([builtinPartsDir]);
 const repo = resolve(import.meta.dirname, '../../..');
@@ -117,6 +117,38 @@ describe('projects and history', () => {
     e.project({ op: 'save' });
     expect(readFileSync(join(dir, 'led.cnl'), 'utf8')).toBe(text);
     expect(e.project({ op: 'list' })).toBe(`  led rev=1 ${join(dir, 'led.cnl')}\n* led2 rev=0 ${join(dir, 'led.cnl')}`);
+  });
+});
+
+describe('shared workspace', () => {
+  it('lets an AI and a user session co-edit one project with attribution', () => {
+    const ws = new Workspace({ library, root: repo });
+    const events: string[] = [];
+    ws.on((e: WorkspaceEvent) => events.push(e.type === 'change' ? `${e.project}@${e.info.rev} ${e.info.source}` : `${e.type} ${e.project}`));
+    const ai = new Engine({ workspace: ws, source: 'ai' });
+    const user = new Engine({ workspace: ws, source: 'user' });
+    ai.project({ op: 'new', name: 'led' });
+    ai.edit({ cnl: LED });
+    user.project({ op: 'use', name: 'led' });
+    user.edit({ cnl: '~R1 resistance=330' });
+    expect(ai.read({ since: 1 })).toBe('led rev=2 ~R1 (since 1)\nR1 res 330');
+    expect(user.history({ op: 'undo' })).toBe('ok rev=3 ~R1');
+    expect(ai.history({ op: 'log', n: 3 })).toBe('led rev=3\nrev 3 user undo: ~R1\nrev 2 user: ~R1\nrev 1 ai: +BAT1 +D1 +R1 nets: +GND +LA +VCC');
+    expect(events).toEqual(['open led', 'led@1 ai', 'led@2 user', 'led@3 user']);
+  });
+
+  it('keeps a separate current project per session', () => {
+    const ws = new Workspace({ library, root: repo });
+    const a = new Engine({ workspace: ws });
+    const b = new Engine({ workspace: ws, source: 'user' });
+    a.project({ op: 'new', name: 'one' });
+    b.project({ op: 'new', name: 'two' });
+    a.edit({ cnl: 'R1 res 1k' });
+    expect(a.projectName).toBe('one');
+    expect(b.read({ detail: 0 })).toBe('two rev=0 · 0 comps 0 nets');
+    b.project({ op: 'close', name: 'one' });
+    expect(err(() => a.read())).toBe('project one was closed by another client · open: two · project op=use name=…');
+    expect(a.project({ op: 'use', name: 'two' })).toBe('ok project=two rev=0');
   });
 });
 

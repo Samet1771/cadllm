@@ -135,6 +135,10 @@
     "DIP-16",
     "SOIC-16"
   ],
+  "views": {
+    "sch": "ic",
+    "bb": "dip"
+  },
   "keywords": [
     "74hc",
     "cmos",

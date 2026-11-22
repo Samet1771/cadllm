@@ -87,18 +87,19 @@ export class Doc {
     }, opts);
   }
 
-  undo(): TxInfo | undefined {
+  /** `source` attributes the undo itself; defaults to whoever made the undone change. */
+  undo(source?: ChangeSource): TxInfo | undefined {
     const e = this.undoStack.pop();
     if (!e) return undefined;
     this.redoStack.push(e);
-    return this.commit(e.before, { label: `undo ${e.label ?? ''}`.trim(), source: e.source, delta: diffCircuits(this.current, e.before, this.parts), notes: [] });
+    return this.commit(e.before, { label: `undo ${e.label ?? ''}`.trim(), source: source ?? e.source, delta: diffCircuits(this.current, e.before, this.parts), notes: [] });
   }
 
-  redo(): TxInfo | undefined {
+  redo(source?: ChangeSource): TxInfo | undefined {
     const e = this.redoStack.pop();
     if (!e) return undefined;
     this.undoStack.push(e);
-    return this.commit(e.after, { label: `redo ${e.label ?? ''}`.trim(), source: e.source, delta: diffCircuits(this.current, e.after, this.parts), notes: [] });
+    return this.commit(e.after, { label: `redo ${e.label ?? ''}`.trim(), source: source ?? e.source, delta: diffCircuits(this.current, e.after, this.parts), notes: [] });
   }
 
   get canUndo(): boolean {

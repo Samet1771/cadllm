@@ -41,6 +41,10 @@
   "footprints": [
     "SW_SPST_THT"
   ],
+  "views": {
+    "sch": "switch",
+    "bb": "slide_switch"
+  },
   "keywords": [
     "switch",
     "spst",

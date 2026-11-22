@@ -45,6 +45,10 @@
     "BatteryHolder_9V",
     "WireLeads"
   ],
+  "views": {
+    "sch": "battery",
+    "bb": "battery"
+  },
   "keywords": [
     "battery",
     "power",

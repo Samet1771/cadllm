@@ -35,6 +35,10 @@
     "0805",
     "L_Axial_L5.3mm"
   ],
+  "views": {
+    "sch": "inductor",
+    "bb": "axial"
+  },
   "keywords": [
     "inductor",
     "coil",

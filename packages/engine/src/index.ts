@@ -2,3 +2,4 @@
 export { Engine, describePart, type EngineOptions } from './engine.ts';
 export { help } from './help.ts';
 export { parseTests, runAdhoc, runAnalysis, runFileTests } from './sim.ts';
+export { Workspace, type LogEntry, type Project, type WorkspaceEvent } from './workspace.ts';

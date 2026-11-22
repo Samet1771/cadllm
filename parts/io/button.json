@@ -41,6 +41,10 @@
   "footprints": [
     "SW_PUSH_6mm"
   ],
+  "views": {
+    "sch": "button",
+    "bb": "button"
+  },
   "keywords": [
     "button",
     "tactile",

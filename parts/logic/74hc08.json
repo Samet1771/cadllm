@@ -86,6 +86,10 @@
     "DIP-14",
     "SOIC-14"
   ],
+  "views": {
+    "sch": "ic",
+    "bb": "dip"
+  },
   "keywords": [
     "74hc",
     "cmos",

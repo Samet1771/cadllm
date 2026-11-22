@@ -44,6 +44,10 @@
   "footprints": [
     "Header_1x02_P2.54mm"
   ],
+  "views": {
+    "sch": "vsource",
+    "bb": "supply"
+  },
   "keywords": [
     "power",
     "supply",

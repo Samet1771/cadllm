@@ -4419,6 +4419,10 @@
   "footprints": [
     "Breadboard_Full_830"
   ],
+  "views": {
+    "sch": "none",
+    "bb": "breadboard"
+  },
   "keywords": [
     "breadboard",
     "full",

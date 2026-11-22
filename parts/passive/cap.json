@@ -35,6 +35,10 @@
     "0805",
     "C_Disc_D5.0mm"
   ],
+  "views": {
+    "sch": "capacitor",
+    "bb": "disc"
+  },
   "keywords": [
     "capacitor",
     "ceramic",

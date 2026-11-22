@@ -44,6 +44,10 @@
     "DO-35",
     "DO-41"
   ],
+  "views": {
+    "sch": "zener",
+    "bb": "axial"
+  },
   "keywords": [
     "zener",
     "diode",

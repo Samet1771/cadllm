@@ -65,6 +65,10 @@
     "DIP-8",
     "SOIC-8"
   ],
+  "views": {
+    "sch": "ic",
+    "bb": "dip"
+  },
   "keywords": [
     "555",
     "ne555",

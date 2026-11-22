@@ -47,6 +47,10 @@
   "footprints": [
     "Potentiometer_THT_9mm"
   ],
+  "views": {
+    "sch": "pot",
+    "bb": "pot"
+  },
   "keywords": [
     "potentiometer",
     "trimmer",

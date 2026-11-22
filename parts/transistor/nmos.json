@@ -40,6 +40,10 @@
     "TO-92",
     "SOT-23"
   ],
+  "views": {
+    "sch": "nmos",
+    "bb": "to92"
+  },
   "keywords": [
     "nmos",
     "mosfet",
