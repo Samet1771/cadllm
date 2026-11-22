@@ -1,0 +1,18 @@
+{
+  "name": "@cadllm/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "description": "MCP server over the CadLLM engine",
+  "license": "GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@cadllm/core": "*",
+    "@cadllm/engine": "*",
+    "@cadllm/library": "*",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^4.6.7"
+  }
+}

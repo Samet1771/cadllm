@@ -13,6 +13,14 @@ Requires Node.js 24 or later.
 ```sh
 npm install
 npm run check      # typecheck + tests
+npm run bench      # MCP token benchmark
+node packages/cli/src/main.ts test examples/nand-led.cnl
+```
+
+Use it from an MCP client (Claude Code shown):
+
+```sh
+claude mcp add cadllm -- node /path/to/CadLLm/packages/cli/src/main.ts mcp
 ```
 
 ## License

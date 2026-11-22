@@ -31,4 +31,14 @@ export class CadErrors extends Error {
     this.name = 'CadErrors';
     this.errors = errors;
   }
+
+  override toString(): string {
+    return this.message;
+  }
+}
+
+/** Text for any thrown value, as shown to AI clients. */
+export function errorText(err: unknown): string {
+  if (err instanceof CadError || err instanceof CadErrors) return String(err);
+  return err instanceof Error ? err.message : String(err);
 }

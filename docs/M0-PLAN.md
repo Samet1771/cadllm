@@ -11,15 +11,34 @@ Goal (from FOUNDATION §11): an agent builds **and verifies** an LED circuit and
 | `library` + `parts/` | ✅ Done: 33 parts (pinouts checked against TI/onsemi datasheets), `loadLibrary`/`createLibrary`, ranked `search`, `summaryLine`, `validatePart`, generator script. 7 tests. |
 | `sim-digital` | ✅ Done: 4-state event sim with strong/weak drive, 74hc00/02/04/08/32/86/74/161/595 models, `simulate`, `clockStimulus`, `truthTable`, `formatTransitions`/`formatTruthTable`, oscillation detection. 24 tests. |
 | `sim-analog` | ✅ Done: MNA DC op (NR + pnjlim, gmin and source stepping), R/POT/V/SW/C/L/diode/LED/zener, logic-IC DC bridge via `opts.logic`, floating-net/loop/singular errors, `formatOp`; `NGSPICE-SPIKE.md` (keep own solver for DC, try `eecircuit-engine` for M2). 37 tests. |
-| `engine`, `mcp`, `cli` | ⏳ WP5 |
+| `engine` | ✅ Done: projects (new/open/save/list/use/fork/merge/close), text tools, file and ad-hoc test runner (dc with logic ICs solved first, truth tables, clocked runs with reset), per-project history log. 13 tests. |
+| `mcp` | ✅ Done: 9 tools (project read edit find part check sim history help), stdio, ≈870 schema tokens. |
+| `cli` | ✅ Done: `cadllm mcp`, `cadllm test <file> [name]`, `cadllm bench [-v]`. Benchmark + stdio tests. |
 
-### Open items for WP5
-- `basicChecks` flags `output_conflict` for any two `power_out` pins on one net (battery `-` + `gnd_symbol` on GND is normal). Relax it in core: only `output` vs `output`/`power_out` conflicts.
-- The `[tests]` text lives in `circuit.meta.__tests` (dsl). Hide `__`-prefixed meta keys from MCP `read`.
-- Running file tests: `logic` → `truthTable`; `dc` → run `simulate` first and pass `Trace.final` as `operatingPoint(q, { logic })`, so mixed circuits (74hc driving an LED) work.
+### M0 goal: measured
+`cadllm bench` (≈4 chars/token; budgets enforced in `packages/cli/test/bench.test.ts`):
+
+| Task | Calls | Tokens (in + out) |
+|---|---|---|
+| Tool schemas (paid per request) | – | ≈870 |
+| 5 V LED, prove I < 20 mA | 5 | ≈140 |
+| 2-bit counter, verify the count sequence | 4 | ≈280 |
+
+### Decisions made in WP5
+- `sim` takes one `run` string in test-body syntax (`dc; expect I(D1) < 20m`), so the ad-hoc and file test languages are the same. `run="test [name*]"` runs the file's tests.
+- Clocked logic: `logic clock=SW1 reset=SW2 cycles=4 period=1u out=Q1,Q0` prints one row per cycle (0 = after reset), checked with `expect table` rows `<cycle> -> <outs>`. Add `trace` for a transition table.
+- Tests are edited with `edit tests="…"` (replaces the whole section).
+- The first edit auto-creates project `untitled`. `fork` + `merge` give sandboxes; `merge` is one undoable revision on the parent.
+- Edit results show all errors but only warnings about touched items, so unused-gate warnings don't repeat on every edit.
+- Values that round onto an expect bound are printed with more digits (`19.998m < 20m`, not `20m < 20m`).
+- Core: `output_conflict` now needs at least one `output` pin (two `power_out` on GND is normal); `Doc.replace()` for merges; `errorText()`.
+
+### Open items
 - `sim-digital` supports a per-instance `props.delay`, but core rejects props the part doesn't declare. Add `delay` to logic parts, or drop the feature.
-- Transistors, NE555 and LM358 have no analog model yet (`operatingPoint` throws a clear error). This is M2 or ngspice work.
+- Transistors, NE555 and LM358 have no analog model yet (`operatingPoint` throws a clear error). `tran`/`ac` are not available. This is M2 or ngspice work.
+- `layout`, `render`, `export`, `ext` tools are M1+.
 - `arduino_uno` GND pins have ids `GND1..3` and names `GND`/`GND2`/`GND3`, because pin names must be unique. Breadboard strip connectivity isn't modeled yet (layout, M1).
+- Token counts are a chars/4 estimate. Run the benchmark with real agents (tokens-to-success per model) before M1.
 - The ~40-part target came in at 33. Add common variants (1N4007, BC547, 74hc138, headers) when needed.
 
 ## Ground rules for every work package

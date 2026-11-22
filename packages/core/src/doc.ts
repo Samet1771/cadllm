@@ -79,6 +79,14 @@ export class Doc {
     return this.commit(draft, { label: opts.label, source, delta, notes: tx.notes });
   }
 
+  /** Replace the whole circuit as one undoable revision (fork merge, restore). Ids must be stable for a meaningful delta. */
+  replace(circuit: Circuit, opts: TransactOptions = {}): TxInfo {
+    return this.transact(tx => {
+      const next = structuredClone(circuit);
+      Object.assign(tx.circuit, next);
+    }, opts);
+  }
+
   undo(): TxInfo | undefined {
     const e = this.undoStack.pop();
     if (!e) return undefined;

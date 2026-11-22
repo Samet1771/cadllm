@@ -26,13 +26,13 @@ export function basicChecks(q: Query): Issue[] {
   }
   for (const net of q.nets()) {
     if (net.pins.length === 1) issues.push({ level: 'warn', code: 'single_pin_net', message: `net ${net.name} has only ${q.pinLabel(net.pins[0]!)}`, at: [net.name] });
-    const outs = net.pins.filter(k => {
+    const typeOf = (k: string) => {
       const [cid, pid] = k.split(':') as [string, string];
       const comp = q.circuit.components[cid];
-      const pin = comp && q.parts.get(comp.part)?.pins.find(p => p.id === pid);
-      return pin?.type === 'output' || pin?.type === 'power_out';
-    });
-    if (outs.length > 1) {
+      return comp && q.parts.get(comp.part)?.pins.find(p => p.id === pid)?.type;
+    };
+    const outs = net.pins.filter(k => typeOf(k) === 'output' || typeOf(k) === 'power_out');
+    if (outs.length > 1 && outs.some(k => typeOf(k) === 'output')) {
       const labels = outs.map(k => q.pinLabel(k));
       issues.push({ level: 'error', code: 'output_conflict', message: `net ${net.name}: outputs ${labels.join(' ')} drive each other`, at: labels });
     }

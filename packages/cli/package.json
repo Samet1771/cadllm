@@ -1,0 +1,21 @@
+{
+  "name": "@cadllm/cli",
+  "version": "0.0.0",
+  "private": true,
+  "description": "cadllm command: mcp, test, bench",
+  "license": "GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception",
+  "type": "module",
+  "bin": {
+    "cadllm": "./src/main.ts"
+  },
+  "exports": {
+    "./bench": "./src/bench.ts"
+  },
+  "dependencies": {
+    "@cadllm/core": "*",
+    "@cadllm/engine": "*",
+    "@cadllm/library": "*",
+    "@cadllm/mcp": "*",
+    "@modelcontextprotocol/sdk": "^1.32.2"
+  }
+}
