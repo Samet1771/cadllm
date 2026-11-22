@@ -1,0 +1,51 @@
+{
+  "id": "button",
+  "name": "Push Button",
+  "summary": "momentary tactile push button",
+  "category": "io",
+  "refPrefix": "SW",
+  "pins": [
+    {
+      "id": "1",
+      "name": "1",
+      "type": "passive"
+    },
+    {
+      "id": "2",
+      "name": "2",
+      "type": "passive"
+    }
+  ],
+  "props": {
+    "state": {
+      "type": "enum",
+      "options": [
+        "released",
+        "pressed"
+      ],
+      "default": "released",
+      "description": "Button state"
+    }
+  },
+  "valueProp": "state",
+  "sim": [
+    {
+      "kind": "spice",
+      "ref": "SW"
+    },
+    {
+      "kind": "logic",
+      "ref": "switch"
+    }
+  ],
+  "footprints": [
+    "SW_PUSH_6mm"
+  ],
+  "keywords": [
+    "button",
+    "tactile",
+    "momentary",
+    "switch",
+    "input"
+  ]
+}

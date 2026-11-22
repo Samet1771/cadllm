@@ -1,0 +1,99 @@
+{
+  "id": "74hc04",
+  "name": "74HC04 Hex Inverter",
+  "summary": "hex inverting buffer (NOT)",
+  "category": "logic",
+  "refPrefix": "U",
+  "pins": [
+    {
+      "id": "1",
+      "name": "1A",
+      "type": "input"
+    },
+    {
+      "id": "2",
+      "name": "1Y",
+      "type": "output"
+    },
+    {
+      "id": "3",
+      "name": "2A",
+      "type": "input"
+    },
+    {
+      "id": "4",
+      "name": "2Y",
+      "type": "output"
+    },
+    {
+      "id": "5",
+      "name": "3A",
+      "type": "input"
+    },
+    {
+      "id": "6",
+      "name": "3Y",
+      "type": "output"
+    },
+    {
+      "id": "7",
+      "name": "GND",
+      "type": "power_in"
+    },
+    {
+      "id": "8",
+      "name": "4Y",
+      "type": "output"
+    },
+    {
+      "id": "9",
+      "name": "4A",
+      "type": "input"
+    },
+    {
+      "id": "10",
+      "name": "5Y",
+      "type": "output"
+    },
+    {
+      "id": "11",
+      "name": "5A",
+      "type": "input"
+    },
+    {
+      "id": "12",
+      "name": "6Y",
+      "type": "output"
+    },
+    {
+      "id": "13",
+      "name": "6A",
+      "type": "input"
+    },
+    {
+      "id": "14",
+      "name": "VCC",
+      "type": "power_in"
+    }
+  ],
+  "sim": [
+    {
+      "kind": "logic",
+      "ref": "74hc04"
+    }
+  ],
+  "footprints": [
+    "DIP-14",
+    "SOIC-14"
+  ],
+  "keywords": [
+    "74hc",
+    "cmos",
+    "logic",
+    "5v",
+    "dip",
+    "inverter",
+    "not"
+  ],
+  "datasheet": "https://www.ti.com/product/SN74HC04"
+}

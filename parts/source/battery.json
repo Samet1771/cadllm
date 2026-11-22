@@ -1,0 +1,55 @@
+{
+  "id": "battery",
+  "name": "Battery",
+  "summary": "DC battery power source",
+  "category": "source",
+  "refPrefix": "BAT",
+  "pins": [
+    {
+      "id": "1",
+      "name": "+",
+      "aliases": [
+        "pos"
+      ],
+      "type": "power_out"
+    },
+    {
+      "id": "2",
+      "name": "-",
+      "aliases": [
+        "neg"
+      ],
+      "type": "power_out"
+    }
+  ],
+  "props": {
+    "voltage": {
+      "type": "number",
+      "unit": "V",
+      "default": "9",
+      "description": "Battery voltage"
+    }
+  },
+  "valueProp": "voltage",
+  "sim": [
+    {
+      "kind": "spice",
+      "ref": "V"
+    },
+    {
+      "kind": "logic",
+      "ref": "const"
+    }
+  ],
+  "footprints": [
+    "BatteryHolder_9V",
+    "WireLeads"
+  ],
+  "keywords": [
+    "battery",
+    "power",
+    "dc",
+    "source",
+    "cell"
+  ]
+}

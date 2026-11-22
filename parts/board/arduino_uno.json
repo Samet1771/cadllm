@@ -1,0 +1,171 @@
+{
+  "id": "arduino_uno",
+  "name": "Arduino Uno",
+  "summary": "ATmega328P microcontroller board (header pins)",
+  "category": "board",
+  "refPrefix": "A",
+  "pins": [
+    {
+      "id": "D0",
+      "name": "D0",
+      "aliases": [
+        "RX"
+      ],
+      "type": "bidir"
+    },
+    {
+      "id": "D1",
+      "name": "D1",
+      "aliases": [
+        "TX"
+      ],
+      "type": "bidir"
+    },
+    {
+      "id": "D2",
+      "name": "D2",
+      "type": "bidir"
+    },
+    {
+      "id": "D3",
+      "name": "D3",
+      "type": "bidir"
+    },
+    {
+      "id": "D4",
+      "name": "D4",
+      "type": "bidir"
+    },
+    {
+      "id": "D5",
+      "name": "D5",
+      "type": "bidir"
+    },
+    {
+      "id": "D6",
+      "name": "D6",
+      "type": "bidir"
+    },
+    {
+      "id": "D7",
+      "name": "D7",
+      "type": "bidir"
+    },
+    {
+      "id": "D8",
+      "name": "D8",
+      "type": "bidir"
+    },
+    {
+      "id": "D9",
+      "name": "D9",
+      "type": "bidir"
+    },
+    {
+      "id": "D10",
+      "name": "D10",
+      "type": "bidir"
+    },
+    {
+      "id": "D11",
+      "name": "D11",
+      "type": "bidir"
+    },
+    {
+      "id": "D12",
+      "name": "D12",
+      "type": "bidir"
+    },
+    {
+      "id": "D13",
+      "name": "D13",
+      "type": "bidir"
+    },
+    {
+      "id": "A0",
+      "name": "A0",
+      "type": "bidir"
+    },
+    {
+      "id": "A1",
+      "name": "A1",
+      "type": "bidir"
+    },
+    {
+      "id": "A2",
+      "name": "A2",
+      "type": "bidir"
+    },
+    {
+      "id": "A3",
+      "name": "A3",
+      "type": "bidir"
+    },
+    {
+      "id": "A4",
+      "name": "A4",
+      "type": "bidir"
+    },
+    {
+      "id": "A5",
+      "name": "A5",
+      "type": "bidir"
+    },
+    {
+      "id": "5V",
+      "name": "5V",
+      "type": "power_out"
+    },
+    {
+      "id": "3V3",
+      "name": "3V3",
+      "type": "power_out"
+    },
+    {
+      "id": "VIN",
+      "name": "VIN",
+      "type": "power_in"
+    },
+    {
+      "id": "GND1",
+      "name": "GND",
+      "type": "power_in"
+    },
+    {
+      "id": "GND2",
+      "name": "GND2",
+      "type": "power_in"
+    },
+    {
+      "id": "GND3",
+      "name": "GND3",
+      "type": "power_in"
+    },
+    {
+      "id": "RESET",
+      "name": "RESET",
+      "type": "input"
+    },
+    {
+      "id": "AREF",
+      "name": "AREF",
+      "type": "passive"
+    },
+    {
+      "id": "IOREF",
+      "name": "IOREF",
+      "type": "power_out"
+    }
+  ],
+  "footprints": [
+    "Arduino_Uno_R3"
+  ],
+  "keywords": [
+    "arduino",
+    "uno",
+    "atmega328p",
+    "mcu",
+    "board",
+    "dev"
+  ]
+}

@@ -1,0 +1,28 @@
+cnl 1
+meta name=nand-led
+
+[circuit]
+BAT1 battery 5V
+D1   led     red
+R1   res     330
+R2   res     10k
+SW1  button  released
+U1   74hc00
+
+GND: BAT1.- D1.K R2.2 U1.GND
+IN:  R2.1 SW1.2 U1.1B
+LA:  D1.A R1.2
+VCC: BAT1.+ SW1.1 U1.1A U1.VCC
+Y:   R1.1 U1.1Y
+
+[tests]
+test "nand truth table"
+  logic in=SW1 out=U1.1Y
+  expect table
+    0 -> 1
+    1 -> 0
+
+test "led current"
+  dc
+  expect I(D1) 8m..15m
+  expect V(LA) > 1.8

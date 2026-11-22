@@ -1,0 +1,50 @@
+{
+  "id": "cap_pol",
+  "name": "Polarized Capacitor",
+  "summary": "electrolytic/tantalum polarized capacitor",
+  "category": "passive",
+  "refPrefix": "C",
+  "pins": [
+    {
+      "id": "1",
+      "name": "+",
+      "aliases": [
+        "pos"
+      ],
+      "type": "passive"
+    },
+    {
+      "id": "2",
+      "name": "-",
+      "aliases": [
+        "neg"
+      ],
+      "type": "passive"
+    }
+  ],
+  "props": {
+    "capacitance": {
+      "type": "number",
+      "unit": "F",
+      "default": "10u",
+      "description": "Capacitance"
+    }
+  },
+  "valueProp": "capacitance",
+  "sim": [
+    {
+      "kind": "spice",
+      "ref": "C"
+    }
+  ],
+  "footprints": [
+    "CP_Radial_D5.0mm_P2.00mm",
+    "CP_Radial_D8.0mm_P3.50mm"
+  ],
+  "keywords": [
+    "capacitor",
+    "electrolytic",
+    "polarized",
+    "bulk"
+  ]
+}

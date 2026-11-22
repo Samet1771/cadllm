@@ -1,0 +1,42 @@
+{
+  "id": "vcc_symbol",
+  "name": "VCC Symbol",
+  "summary": "positive supply rail symbol",
+  "category": "symbol",
+  "refPrefix": "VCC",
+  "pins": [
+    {
+      "id": "1",
+      "name": "VCC",
+      "type": "power_out"
+    }
+  ],
+  "props": {
+    "voltage": {
+      "type": "number",
+      "unit": "V",
+      "default": "5",
+      "description": "Rail voltage"
+    }
+  },
+  "valueProp": "voltage",
+  "sim": [
+    {
+      "kind": "spice",
+      "ref": "VSYM"
+    },
+    {
+      "kind": "logic",
+      "ref": "const"
+    }
+  ],
+  "keywords": [
+    "vcc",
+    "vdd",
+    "power",
+    "rail",
+    "5v",
+    "3.3v",
+    "symbol"
+  ]
+}

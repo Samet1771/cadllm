@@ -1,0 +1,27 @@
+{
+  "id": "logic_probe",
+  "name": "Logic Probe",
+  "summary": "digital signal probe",
+  "category": "symbol",
+  "refPrefix": "TP",
+  "pins": [
+    {
+      "id": "1",
+      "name": "IN",
+      "type": "input"
+    }
+  ],
+  "sim": [
+    {
+      "kind": "logic",
+      "ref": "probe"
+    }
+  ],
+  "keywords": [
+    "probe",
+    "test",
+    "logic",
+    "digital",
+    "monitor"
+  ]
+}

@@ -1,0 +1,152 @@
+{
+  "id": "74hc161",
+  "name": "74HC161 4-Bit Binary Counter",
+  "summary": "synchronous 4-bit presettable binary counter",
+  "category": "logic",
+  "refPrefix": "U",
+  "pins": [
+    {
+      "id": "1",
+      "name": "MR",
+      "aliases": [
+        "CLR"
+      ],
+      "type": "input"
+    },
+    {
+      "id": "2",
+      "name": "CP",
+      "aliases": [
+        "CLK"
+      ],
+      "type": "input"
+    },
+    {
+      "id": "3",
+      "name": "D0",
+      "aliases": [
+        "A"
+      ],
+      "type": "input"
+    },
+    {
+      "id": "4",
+      "name": "D1",
+      "aliases": [
+        "B"
+      ],
+      "type": "input"
+    },
+    {
+      "id": "5",
+      "name": "D2",
+      "aliases": [
+        "C"
+      ],
+      "type": "input"
+    },
+    {
+      "id": "6",
+      "name": "D3",
+      "aliases": [
+        "D"
+      ],
+      "type": "input"
+    },
+    {
+      "id": "7",
+      "name": "CEP",
+      "aliases": [
+        "ENP"
+      ],
+      "type": "input"
+    },
+    {
+      "id": "8",
+      "name": "GND",
+      "type": "power_in"
+    },
+    {
+      "id": "9",
+      "name": "PE",
+      "aliases": [
+        "LOAD"
+      ],
+      "type": "input"
+    },
+    {
+      "id": "10",
+      "name": "CET",
+      "aliases": [
+        "ENT"
+      ],
+      "type": "input"
+    },
+    {
+      "id": "11",
+      "name": "Q3",
+      "aliases": [
+        "QD"
+      ],
+      "type": "output"
+    },
+    {
+      "id": "12",
+      "name": "Q2",
+      "aliases": [
+        "QC"
+      ],
+      "type": "output"
+    },
+    {
+      "id": "13",
+      "name": "Q1",
+      "aliases": [
+        "QB"
+      ],
+      "type": "output"
+    },
+    {
+      "id": "14",
+      "name": "Q0",
+      "aliases": [
+        "QA"
+      ],
+      "type": "output"
+    },
+    {
+      "id": "15",
+      "name": "TC",
+      "aliases": [
+        "RCO"
+      ],
+      "type": "output"
+    },
+    {
+      "id": "16",
+      "name": "VCC",
+      "type": "power_in"
+    }
+  ],
+  "sim": [
+    {
+      "kind": "logic",
+      "ref": "74hc161"
+    }
+  ],
+  "footprints": [
+    "DIP-16",
+    "SOIC-16"
+  ],
+  "keywords": [
+    "74hc",
+    "cmos",
+    "logic",
+    "5v",
+    "dip",
+    "counter",
+    "binary",
+    "4-bit"
+  ],
+  "datasheet": "https://www.ti.com/product/SN74HC161"
+}

@@ -1,0 +1,29 @@
+{
+  "id": "buzzer",
+  "name": "Buzzer",
+  "summary": "piezo/active buzzer",
+  "category": "io",
+  "refPrefix": "BZ",
+  "pins": [
+    {
+      "id": "1",
+      "name": "+",
+      "type": "passive"
+    },
+    {
+      "id": "2",
+      "name": "-",
+      "type": "passive"
+    }
+  ],
+  "footprints": [
+    "Buzzer_12mm"
+  ],
+  "keywords": [
+    "buzzer",
+    "piezo",
+    "sound",
+    "alarm",
+    "audio"
+  ]
+}

@@ -7,11 +7,20 @@ Goal (from FOUNDATION §11): an agent builds **and verifies** an LED circuit and
 | Package | State |
 |---|---|
 | `core` | ✅ Done: types, Query, Tx (transactions), Doc (revisions, undo/redo, `since`), `basicChecks`, `parseSI`. 33 tests. |
-| `dsl` | ⏳ WP1 |
-| `library` + `parts/` | ⏳ WP2 |
-| `sim-digital` | ⏳ WP3 |
-| `sim-analog` | ⏳ WP4 |
-| `engine`, `mcp`, `cli` | ⏳ WP5 (after WP1–2) |
+| `dsl` | ✅ Done: `parseCnl` (sections + `[tests]` AST), `applyEdit` (all line errors, atomic), `printCircuit` (detail 0/1/2, select, place), `printDelta`, `loadCircuit`/`saveCnl` (exact round trip), `examples/nand-led.cnl`. 14 tests. |
+| `library` + `parts/` | ✅ Done: 33 parts (pinouts checked against TI/onsemi datasheets), `loadLibrary`/`createLibrary`, ranked `search`, `summaryLine`, `validatePart`, generator script. 7 tests. |
+| `sim-digital` | ✅ Done: 4-state event sim with strong/weak drive, 74hc00/02/04/08/32/86/74/161/595 models, `simulate`, `clockStimulus`, `truthTable`, `formatTransitions`/`formatTruthTable`, oscillation detection. 24 tests. |
+| `sim-analog` | ✅ Done: MNA DC op (NR + pnjlim, gmin and source stepping), R/POT/V/SW/C/L/diode/LED/zener, logic-IC DC bridge via `opts.logic`, floating-net/loop/singular errors, `formatOp`; `NGSPICE-SPIKE.md` (keep own solver for DC, try `eecircuit-engine` for M2). 37 tests. |
+| `engine`, `mcp`, `cli` | ⏳ WP5 |
+
+### Open items for WP5
+- `basicChecks` flags `output_conflict` for any two `power_out` pins on one net (battery `-` + `gnd_symbol` on GND is normal). Relax it in core: only `output` vs `output`/`power_out` conflicts.
+- The `[tests]` text lives in `circuit.meta.__tests` (dsl). Hide `__`-prefixed meta keys from MCP `read`.
+- Running file tests: `logic` → `truthTable`; `dc` → run `simulate` first and pass `Trace.final` as `operatingPoint(q, { logic })`, so mixed circuits (74hc driving an LED) work.
+- `sim-digital` supports a per-instance `props.delay`, but core rejects props the part doesn't declare. Add `delay` to logic parts, or drop the feature.
+- Transistors, NE555 and LM358 have no analog model yet (`operatingPoint` throws a clear error). This is M2 or ngspice work.
+- `arduino_uno` GND pins have ids `GND1..3` and names `GND`/`GND2`/`GND3`, because pin names must be unique. Breadboard strip connectivity isn't modeled yet (layout, M1).
+- The ~40-part target came in at 33. Add common variants (1N4007, BC547, 74hc138, headers) when needed.
 
 ## Ground rules for every work package
 - **Read first:** `docs/FOUNDATION.md` (especially §3 CNL and §4 MCP), `packages/core/src/*.ts` (the contract), `packages/core/test/doc.test.ts` (style).
@@ -20,6 +29,34 @@ Goal (from FOUNDATION §11): an agent builds **and verifies** an LED circuit and
 - **No new runtime dependencies** without saying why (dev dependencies for tests are fine).
 - **Deterministic output** everywhere: sorted, stable, no timestamps or randomness.
 - **Done when:** `npm run check` passes at the repo root, and the reply lists the files changed, the public API and any open questions.
+
+## Shared part contract (WP2 implements it; WP1/WP3/WP4 rely on it)
+Packages are built in parallel, so DSL and sim tests use **local fixture PartDefs** (`test/fixtures.ts`) that copy these ids, pin names, props and sim refs exactly. Pin = `id:name (aliases)`.
+
+| id | pins | props (default) · valueProp | sim refs |
+|---|---|---|---|
+| res | 1:1, 2:2 | resistance (1k) · resistance | spice R, logic pull |
+| cap / cap_pol | 1:1, 2:2 / 1:+ (pos), 2:- (neg) | capacitance (100n / 10u) · capacitance | spice C |
+| inductor | 1:1, 2:2 | inductance (10u) · inductance | spice L |
+| pot | 1:1, 2:W (wiper), 3:3 | resistance (10k) · resistance; position 0..1 (0.5) = fraction from pin 1 to 3 | spice POT |
+| led | 1:A (anode, +), 2:K (cathode, -) | color enum red green blue yellow white (red) · color | spice LED |
+| diode / zener | 1:A (anode, +), 2:K (cathode, -) | zener: voltage (5.1) · voltage | spice D1N4148 / DZ |
+| battery / dc_supply | 1:+ (pos), 2:- (neg), type power_out | voltage (9 / 5) · voltage | spice V, logic const |
+| vcc_symbol / gnd_symbol | 1:VCC / 1:GND, type power_out | vcc: voltage (5) · voltage | spice VSYM / GND, logic const |
+| switch_spst | 1:1, 2:2 | state enum open closed (open) · state | spice SW, logic switch |
+| button | 1:1, 2:2 | state enum released pressed (released) · state | spice SW, logic switch |
+| buzzer | 1:+, 2:- | — | — |
+| logic_probe | 1:IN, type input | — | logic probe |
+| npn / pnp | 1:E, 2:B, 3:C (2N3904/2N3906 TO-92) | — | spice Q2N3904 / Q2N3906 |
+| nmos | 1:S, 2:G, 3:D (2N7000 TO-92) | — | spice M2N7000 |
+| 74hc00/02/04/08/32/86 | datasheet pin numbers; names `1A 1B 1Y … VCC GND` | — | logic `<id>` |
+| 74hc74 | 1:1CLR 2:1D 3:1CLK 4:1PRE 5:1Q 6:1QN 7:GND 8:2QN 9:2Q 10:2PRE 11:2CLK 12:2D 13:2CLR 14:VCC (CLR/PRE active low) | — | logic 74hc74 |
+| 74hc161 | 1:MR (CLR) 2:CP (CLK) 3–6:D0–D3 (A–D) 7:CEP (ENP) 8:GND 9:PE (LOAD) 10:CET (ENT) 11:Q3 (QD) 12:Q2 (QC) 13:Q1 (QB) 14:Q0 (QA) 15:TC (RCO) 16:VCC | — | logic 74hc161 |
+| 74hc595 | 1:Q1 2:Q2 … 7:Q7 8:GND 9:Q7S (QH') 10:MR (SRCLR) 11:SHCP (SRCLK) 12:STCP (RCLK) 13:OE 14:DS (SER) 15:Q0 16:VCC | — | logic 74hc595 |
+| ne555 | 1:GND 2:TRIG 3:OUT 4:RESET 5:CTRL (CONT) 6:THR 7:DIS 8:VCC | — | spice NE555 |
+| lm358 | 1:1OUT 2:1IN- 3:1IN+ 4:GND (V-) 5:2IN+ 6:2IN- 7:2OUT 8:VCC (V+) | — | spice LM358 |
+
+Logic sim semantics: `const` drives 1 when voltage ≥ 2 V, else 0 (`-`/GND pins drive 0); `switch` shorts its two nets when closed/pressed; `pull` (resistor) passes a **weak** copy of the value across, which loses to strong drivers; ICs output X unless VCC=1 and GND=0. Two strong drivers with different values → X.
 
 ## WP1 `@cadllm/dsl`: CNL parser and printer (tier: hard)
 Implement FOUNDATION §3 exactly. Where the spec is ambiguous, pick the most token-cheap option and list it in the reply.

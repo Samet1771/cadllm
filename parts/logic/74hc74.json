@@ -1,0 +1,100 @@
+{
+  "id": "74hc74",
+  "name": "74HC74 Dual D Flip-Flop",
+  "summary": "dual D-type flip-flop with preset and clear",
+  "category": "logic",
+  "refPrefix": "U",
+  "pins": [
+    {
+      "id": "1",
+      "name": "1CLR",
+      "type": "input"
+    },
+    {
+      "id": "2",
+      "name": "1D",
+      "type": "input"
+    },
+    {
+      "id": "3",
+      "name": "1CLK",
+      "type": "input"
+    },
+    {
+      "id": "4",
+      "name": "1PRE",
+      "type": "input"
+    },
+    {
+      "id": "5",
+      "name": "1Q",
+      "type": "output"
+    },
+    {
+      "id": "6",
+      "name": "1QN",
+      "type": "output"
+    },
+    {
+      "id": "7",
+      "name": "GND",
+      "type": "power_in"
+    },
+    {
+      "id": "8",
+      "name": "2QN",
+      "type": "output"
+    },
+    {
+      "id": "9",
+      "name": "2Q",
+      "type": "output"
+    },
+    {
+      "id": "10",
+      "name": "2PRE",
+      "type": "input"
+    },
+    {
+      "id": "11",
+      "name": "2CLK",
+      "type": "input"
+    },
+    {
+      "id": "12",
+      "name": "2D",
+      "type": "input"
+    },
+    {
+      "id": "13",
+      "name": "2CLR",
+      "type": "input"
+    },
+    {
+      "id": "14",
+      "name": "VCC",
+      "type": "power_in"
+    }
+  ],
+  "sim": [
+    {
+      "kind": "logic",
+      "ref": "74hc74"
+    }
+  ],
+  "footprints": [
+    "DIP-14",
+    "SOIC-14"
+  ],
+  "keywords": [
+    "74hc",
+    "cmos",
+    "logic",
+    "5v",
+    "dip",
+    "flip-flop",
+    "dff",
+    "latch"
+  ],
+  "datasheet": "https://www.ti.com/product/SN74HC74"
+}

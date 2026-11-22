@@ -1,0 +1,48 @@
+{
+  "id": "res",
+  "name": "Resistor",
+  "summary": "axial/SMD resistor",
+  "category": "passive",
+  "refPrefix": "R",
+  "pins": [
+    {
+      "id": "1",
+      "name": "1",
+      "type": "passive"
+    },
+    {
+      "id": "2",
+      "name": "2",
+      "type": "passive"
+    }
+  ],
+  "props": {
+    "resistance": {
+      "type": "number",
+      "unit": "Ω",
+      "default": "1k",
+      "description": "Resistance"
+    }
+  },
+  "valueProp": "resistance",
+  "sim": [
+    {
+      "kind": "spice",
+      "ref": "R"
+    },
+    {
+      "kind": "logic",
+      "ref": "pull"
+    }
+  ],
+  "footprints": [
+    "0805",
+    "THT-axial"
+  ],
+  "keywords": [
+    "resistor",
+    "ohm",
+    "pullup",
+    "pulldown"
+  ]
+}

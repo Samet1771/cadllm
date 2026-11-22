@@ -1,0 +1,50 @@
+{
+  "id": "switch_spst",
+  "name": "SPST Switch",
+  "summary": "single-pole single-throw toggle switch",
+  "category": "io",
+  "refPrefix": "SW",
+  "pins": [
+    {
+      "id": "1",
+      "name": "1",
+      "type": "passive"
+    },
+    {
+      "id": "2",
+      "name": "2",
+      "type": "passive"
+    }
+  ],
+  "props": {
+    "state": {
+      "type": "enum",
+      "options": [
+        "open",
+        "closed"
+      ],
+      "default": "open",
+      "description": "Switch state"
+    }
+  },
+  "valueProp": "state",
+  "sim": [
+    {
+      "kind": "spice",
+      "ref": "SW"
+    },
+    {
+      "kind": "logic",
+      "ref": "switch"
+    }
+  ],
+  "footprints": [
+    "SW_SPST_THT"
+  ],
+  "keywords": [
+    "switch",
+    "spst",
+    "toggle",
+    "slide"
+  ]
+}

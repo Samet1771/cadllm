@@ -1,0 +1,32 @@
+{
+  "id": "gnd_symbol",
+  "name": "Ground Symbol",
+  "summary": "0V ground reference symbol",
+  "category": "symbol",
+  "refPrefix": "GND",
+  "pins": [
+    {
+      "id": "1",
+      "name": "GND",
+      "type": "power_out"
+    }
+  ],
+  "sim": [
+    {
+      "kind": "spice",
+      "ref": "GND"
+    },
+    {
+      "kind": "logic",
+      "ref": "const"
+    }
+  ],
+  "keywords": [
+    "ground",
+    "gnd",
+    "0v",
+    "reference",
+    "power",
+    "symbol"
+  ]
+}

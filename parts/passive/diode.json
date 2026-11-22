@@ -1,0 +1,45 @@
+{
+  "id": "diode",
+  "name": "1N4148 Diode",
+  "summary": "fast switching silicon diode (1N4148)",
+  "category": "passive",
+  "refPrefix": "D",
+  "pins": [
+    {
+      "id": "1",
+      "name": "A",
+      "aliases": [
+        "anode",
+        "+"
+      ],
+      "type": "passive"
+    },
+    {
+      "id": "2",
+      "name": "K",
+      "aliases": [
+        "cathode",
+        "-"
+      ],
+      "type": "passive"
+    }
+  ],
+  "sim": [
+    {
+      "kind": "spice",
+      "ref": "D1N4148"
+    }
+  ],
+  "footprints": [
+    "THT-axial",
+    "DO-35",
+    "SOD-123"
+  ],
+  "keywords": [
+    "diode",
+    "1n4148",
+    "rectifier",
+    "switching"
+  ],
+  "datasheet": "https://www.onsemi.com/pdf/datasheet/1n914-d.pdf"
+}

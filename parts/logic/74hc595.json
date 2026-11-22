@@ -1,0 +1,149 @@
+{
+  "id": "74hc595",
+  "name": "74HC595 8-Bit Shift Register",
+  "summary": "8-bit serial-in parallel-out shift register (3-state)",
+  "category": "logic",
+  "refPrefix": "U",
+  "pins": [
+    {
+      "id": "1",
+      "name": "Q1",
+      "aliases": [
+        "QB"
+      ],
+      "type": "tristate"
+    },
+    {
+      "id": "2",
+      "name": "Q2",
+      "aliases": [
+        "QC"
+      ],
+      "type": "tristate"
+    },
+    {
+      "id": "3",
+      "name": "Q3",
+      "aliases": [
+        "QD"
+      ],
+      "type": "tristate"
+    },
+    {
+      "id": "4",
+      "name": "Q4",
+      "aliases": [
+        "QE"
+      ],
+      "type": "tristate"
+    },
+    {
+      "id": "5",
+      "name": "Q5",
+      "aliases": [
+        "QF"
+      ],
+      "type": "tristate"
+    },
+    {
+      "id": "6",
+      "name": "Q6",
+      "aliases": [
+        "QG"
+      ],
+      "type": "tristate"
+    },
+    {
+      "id": "7",
+      "name": "Q7",
+      "aliases": [
+        "QH"
+      ],
+      "type": "tristate"
+    },
+    {
+      "id": "8",
+      "name": "GND",
+      "type": "power_in"
+    },
+    {
+      "id": "9",
+      "name": "Q7S",
+      "aliases": [
+        "QH'"
+      ],
+      "type": "output"
+    },
+    {
+      "id": "10",
+      "name": "MR",
+      "aliases": [
+        "SRCLR"
+      ],
+      "type": "input"
+    },
+    {
+      "id": "11",
+      "name": "SHCP",
+      "aliases": [
+        "SRCLK"
+      ],
+      "type": "input"
+    },
+    {
+      "id": "12",
+      "name": "STCP",
+      "aliases": [
+        "RCLK"
+      ],
+      "type": "input"
+    },
+    {
+      "id": "13",
+      "name": "OE",
+      "type": "input"
+    },
+    {
+      "id": "14",
+      "name": "DS",
+      "aliases": [
+        "SER"
+      ],
+      "type": "input"
+    },
+    {
+      "id": "15",
+      "name": "Q0",
+      "aliases": [
+        "QA"
+      ],
+      "type": "tristate"
+    },
+    {
+      "id": "16",
+      "name": "VCC",
+      "type": "power_in"
+    }
+  ],
+  "sim": [
+    {
+      "kind": "logic",
+      "ref": "74hc595"
+    }
+  ],
+  "footprints": [
+    "DIP-16",
+    "SOIC-16"
+  ],
+  "keywords": [
+    "74hc",
+    "cmos",
+    "logic",
+    "5v",
+    "dip",
+    "shift",
+    "register",
+    "sipo"
+  ],
+  "datasheet": "https://www.ti.com/product/SN74HC595"
+}

@@ -1,0 +1,52 @@
+{
+  "id": "npn",
+  "name": "2N3904 NPN Transistor",
+  "summary": "general-purpose NPN BJT (2N3904)",
+  "category": "transistor",
+  "refPrefix": "Q",
+  "pins": [
+    {
+      "id": "1",
+      "name": "E",
+      "aliases": [
+        "emitter"
+      ],
+      "type": "passive"
+    },
+    {
+      "id": "2",
+      "name": "B",
+      "aliases": [
+        "base"
+      ],
+      "type": "passive"
+    },
+    {
+      "id": "3",
+      "name": "C",
+      "aliases": [
+        "collector"
+      ],
+      "type": "passive"
+    }
+  ],
+  "sim": [
+    {
+      "kind": "spice",
+      "ref": "Q2N3904"
+    }
+  ],
+  "footprints": [
+    "TO-92",
+    "SOT-23"
+  ],
+  "keywords": [
+    "npn",
+    "bjt",
+    "transistor",
+    "2n3904",
+    "amplifier",
+    "switch"
+  ],
+  "datasheet": "https://www.onsemi.com/pdf/datasheet/2n3904-d.pdf"
+}

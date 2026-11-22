@@ -1,0 +1,45 @@
+{
+  "id": "cap",
+  "name": "Capacitor",
+  "summary": "non-polarized capacitor",
+  "category": "passive",
+  "refPrefix": "C",
+  "pins": [
+    {
+      "id": "1",
+      "name": "1",
+      "type": "passive"
+    },
+    {
+      "id": "2",
+      "name": "2",
+      "type": "passive"
+    }
+  ],
+  "props": {
+    "capacitance": {
+      "type": "number",
+      "unit": "F",
+      "default": "100n",
+      "description": "Capacitance"
+    }
+  },
+  "valueProp": "capacitance",
+  "sim": [
+    {
+      "kind": "spice",
+      "ref": "C"
+    }
+  ],
+  "footprints": [
+    "0805",
+    "C_Disc_D5.0mm"
+  ],
+  "keywords": [
+    "capacitor",
+    "ceramic",
+    "film",
+    "decoupling",
+    "bypass"
+  ]
+}

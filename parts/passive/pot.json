@@ -1,0 +1,56 @@
+{
+  "id": "pot",
+  "name": "Potentiometer",
+  "summary": "3-terminal variable resistor",
+  "category": "passive",
+  "refPrefix": "RV",
+  "pins": [
+    {
+      "id": "1",
+      "name": "1",
+      "type": "passive"
+    },
+    {
+      "id": "2",
+      "name": "W",
+      "aliases": [
+        "wiper"
+      ],
+      "type": "passive"
+    },
+    {
+      "id": "3",
+      "name": "3",
+      "type": "passive"
+    }
+  ],
+  "props": {
+    "resistance": {
+      "type": "number",
+      "unit": "Ω",
+      "default": "10k",
+      "description": "Total resistance"
+    },
+    "position": {
+      "type": "number",
+      "default": "0.5",
+      "description": "Wiper fraction 0..1 from pin 1 to 3"
+    }
+  },
+  "valueProp": "resistance",
+  "sim": [
+    {
+      "kind": "spice",
+      "ref": "POT"
+    }
+  ],
+  "footprints": [
+    "Potentiometer_THT_9mm"
+  ],
+  "keywords": [
+    "potentiometer",
+    "trimmer",
+    "variable",
+    "divider"
+  ]
+}

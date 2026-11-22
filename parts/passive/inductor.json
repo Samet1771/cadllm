@@ -1,0 +1,44 @@
+{
+  "id": "inductor",
+  "name": "Inductor",
+  "summary": "wire-wound/SMD inductor",
+  "category": "passive",
+  "refPrefix": "L",
+  "pins": [
+    {
+      "id": "1",
+      "name": "1",
+      "type": "passive"
+    },
+    {
+      "id": "2",
+      "name": "2",
+      "type": "passive"
+    }
+  ],
+  "props": {
+    "inductance": {
+      "type": "number",
+      "unit": "H",
+      "default": "10u",
+      "description": "Inductance"
+    }
+  },
+  "valueProp": "inductance",
+  "sim": [
+    {
+      "kind": "spice",
+      "ref": "L"
+    }
+  ],
+  "footprints": [
+    "0805",
+    "L_Axial_L5.3mm"
+  ],
+  "keywords": [
+    "inductor",
+    "coil",
+    "choke",
+    "henry"
+  ]
+}

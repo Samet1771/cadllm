@@ -1,0 +1,98 @@
+{
+  "id": "74hc02",
+  "name": "74HC02 Quad NOR",
+  "summary": "quad 2-input NOR gate",
+  "category": "logic",
+  "refPrefix": "U",
+  "pins": [
+    {
+      "id": "1",
+      "name": "1Y",
+      "type": "output"
+    },
+    {
+      "id": "2",
+      "name": "1A",
+      "type": "input"
+    },
+    {
+      "id": "3",
+      "name": "1B",
+      "type": "input"
+    },
+    {
+      "id": "4",
+      "name": "2Y",
+      "type": "output"
+    },
+    {
+      "id": "5",
+      "name": "2A",
+      "type": "input"
+    },
+    {
+      "id": "6",
+      "name": "2B",
+      "type": "input"
+    },
+    {
+      "id": "7",
+      "name": "GND",
+      "type": "power_in"
+    },
+    {
+      "id": "8",
+      "name": "3A",
+      "type": "input"
+    },
+    {
+      "id": "9",
+      "name": "3B",
+      "type": "input"
+    },
+    {
+      "id": "10",
+      "name": "3Y",
+      "type": "output"
+    },
+    {
+      "id": "11",
+      "name": "4A",
+      "type": "input"
+    },
+    {
+      "id": "12",
+      "name": "4B",
+      "type": "input"
+    },
+    {
+      "id": "13",
+      "name": "4Y",
+      "type": "output"
+    },
+    {
+      "id": "14",
+      "name": "VCC",
+      "type": "power_in"
+    }
+  ],
+  "sim": [
+    {
+      "kind": "logic",
+      "ref": "74hc02"
+    }
+  ],
+  "footprints": [
+    "DIP-14",
+    "SOIC-14"
+  ],
+  "keywords": [
+    "74hc",
+    "cmos",
+    "logic",
+    "5v",
+    "dip",
+    "nor"
+  ],
+  "datasheet": "https://www.ti.com/product/SN74HC02"
+}

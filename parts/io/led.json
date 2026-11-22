@@ -1,0 +1,59 @@
+{
+  "id": "led",
+  "name": "LED",
+  "summary": "light-emitting diode",
+  "category": "io",
+  "refPrefix": "D",
+  "pins": [
+    {
+      "id": "1",
+      "name": "A",
+      "aliases": [
+        "anode",
+        "+"
+      ],
+      "type": "passive"
+    },
+    {
+      "id": "2",
+      "name": "K",
+      "aliases": [
+        "cathode",
+        "-"
+      ],
+      "type": "passive"
+    }
+  ],
+  "props": {
+    "color": {
+      "type": "enum",
+      "options": [
+        "red",
+        "green",
+        "blue",
+        "yellow",
+        "white"
+      ],
+      "default": "red",
+      "description": "LED color"
+    }
+  },
+  "valueProp": "color",
+  "sim": [
+    {
+      "kind": "spice",
+      "ref": "LED"
+    }
+  ],
+  "footprints": [
+    "LED_D5.0mm",
+    "LED_D3.0mm",
+    "0805"
+  ],
+  "keywords": [
+    "led",
+    "light",
+    "diode",
+    "indicator"
+  ]
+}

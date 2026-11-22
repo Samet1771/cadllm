@@ -1,0 +1,2119 @@
+{
+  "id": "breadboard_half",
+  "name": "Half-Size Breadboard",
+  "summary": "420-pin half breadboard (A-E, F-J cols 1-30; rails T+/T-/B+/B-1..30; 5-hole vertical strips)",
+  "category": "board",
+  "refPrefix": "BB",
+  "pins": [
+    {
+      "id": "T+1",
+      "name": "T+1",
+      "type": "passive"
+    },
+    {
+      "id": "T+2",
+      "name": "T+2",
+      "type": "passive"
+    },
+    {
+      "id": "T+3",
+      "name": "T+3",
+      "type": "passive"
+    },
+    {
+      "id": "T+4",
+      "name": "T+4",
+      "type": "passive"
+    },
+    {
+      "id": "T+5",
+      "name": "T+5",
+      "type": "passive"
+    },
+    {
+      "id": "T+6",
+      "name": "T+6",
+      "type": "passive"
+    },
+    {
+      "id": "T+7",
+      "name": "T+7",
+      "type": "passive"
+    },
+    {
+      "id": "T+8",
+      "name": "T+8",
+      "type": "passive"
+    },
+    {
+      "id": "T+9",
+      "name": "T+9",
+      "type": "passive"
+    },
+    {
+      "id": "T+10",
+      "name": "T+10",
+      "type": "passive"
+    },
+    {
+      "id": "T+11",
+      "name": "T+11",
+      "type": "passive"
+    },
+    {
+      "id": "T+12",
+      "name": "T+12",
+      "type": "passive"
+    },
+    {
+      "id": "T+13",
+      "name": "T+13",
+      "type": "passive"
+    },
+    {
+      "id": "T+14",
+      "name": "T+14",
+      "type": "passive"
+    },
+    {
+      "id": "T+15",
+      "name": "T+15",
+      "type": "passive"
+    },
+    {
+      "id": "T+16",
+      "name": "T+16",
+      "type": "passive"
+    },
+    {
+      "id": "T+17",
+      "name": "T+17",
+      "type": "passive"
+    },
+    {
+      "id": "T+18",
+      "name": "T+18",
+      "type": "passive"
+    },
+    {
+      "id": "T+19",
+      "name": "T+19",
+      "type": "passive"
+    },
+    {
+      "id": "T+20",
+      "name": "T+20",
+      "type": "passive"
+    },
+    {
+      "id": "T+21",
+      "name": "T+21",
+      "type": "passive"
+    },
+    {
+      "id": "T+22",
+      "name": "T+22",
+      "type": "passive"
+    },
+    {
+      "id": "T+23",
+      "name": "T+23",
+      "type": "passive"
+    },
+    {
+      "id": "T+24",
+      "name": "T+24",
+      "type": "passive"
+    },
+    {
+      "id": "T+25",
+      "name": "T+25",
+      "type": "passive"
+    },
+    {
+      "id": "T+26",
+      "name": "T+26",
+      "type": "passive"
+    },
+    {
+      "id": "T+27",
+      "name": "T+27",
+      "type": "passive"
+    },
+    {
+      "id": "T+28",
+      "name": "T+28",
+      "type": "passive"
+    },
+    {
+      "id": "T+29",
+      "name": "T+29",
+      "type": "passive"
+    },
+    {
+      "id": "T+30",
+      "name": "T+30",
+      "type": "passive"
+    },
+    {
+      "id": "T-1",
+      "name": "T-1",
+      "type": "passive"
+    },
+    {
+      "id": "T-2",
+      "name": "T-2",
+      "type": "passive"
+    },
+    {
+      "id": "T-3",
+      "name": "T-3",
+      "type": "passive"
+    },
+    {
+      "id": "T-4",
+      "name": "T-4",
+      "type": "passive"
+    },
+    {
+      "id": "T-5",
+      "name": "T-5",
+      "type": "passive"
+    },
+    {
+      "id": "T-6",
+      "name": "T-6",
+      "type": "passive"
+    },
+    {
+      "id": "T-7",
+      "name": "T-7",
+      "type": "passive"
+    },
+    {
+      "id": "T-8",
+      "name": "T-8",
+      "type": "passive"
+    },
+    {
+      "id": "T-9",
+      "name": "T-9",
+      "type": "passive"
+    },
+    {
+      "id": "T-10",
+      "name": "T-10",
+      "type": "passive"
+    },
+    {
+      "id": "T-11",
+      "name": "T-11",
+      "type": "passive"
+    },
+    {
+      "id": "T-12",
+      "name": "T-12",
+      "type": "passive"
+    },
+    {
+      "id": "T-13",
+      "name": "T-13",
+      "type": "passive"
+    },
+    {
+      "id": "T-14",
+      "name": "T-14",
+      "type": "passive"
+    },
+    {
+      "id": "T-15",
+      "name": "T-15",
+      "type": "passive"
+    },
+    {
+      "id": "T-16",
+      "name": "T-16",
+      "type": "passive"
+    },
+    {
+      "id": "T-17",
+      "name": "T-17",
+      "type": "passive"
+    },
+    {
+      "id": "T-18",
+      "name": "T-18",
+      "type": "passive"
+    },
+    {
+      "id": "T-19",
+      "name": "T-19",
+      "type": "passive"
+    },
+    {
+      "id": "T-20",
+      "name": "T-20",
+      "type": "passive"
+    },
+    {
+      "id": "T-21",
+      "name": "T-21",
+      "type": "passive"
+    },
+    {
+      "id": "T-22",
+      "name": "T-22",
+      "type": "passive"
+    },
+    {
+      "id": "T-23",
+      "name": "T-23",
+      "type": "passive"
+    },
+    {
+      "id": "T-24",
+      "name": "T-24",
+      "type": "passive"
+    },
+    {
+      "id": "T-25",
+      "name": "T-25",
+      "type": "passive"
+    },
+    {
+      "id": "T-26",
+      "name": "T-26",
+      "type": "passive"
+    },
+    {
+      "id": "T-27",
+      "name": "T-27",
+      "type": "passive"
+    },
+    {
+      "id": "T-28",
+      "name": "T-28",
+      "type": "passive"
+    },
+    {
+      "id": "T-29",
+      "name": "T-29",
+      "type": "passive"
+    },
+    {
+      "id": "T-30",
+      "name": "T-30",
+      "type": "passive"
+    },
+    {
+      "id": "B+1",
+      "name": "B+1",
+      "type": "passive"
+    },
+    {
+      "id": "B+2",
+      "name": "B+2",
+      "type": "passive"
+    },
+    {
+      "id": "B+3",
+      "name": "B+3",
+      "type": "passive"
+    },
+    {
+      "id": "B+4",
+      "name": "B+4",
+      "type": "passive"
+    },
+    {
+      "id": "B+5",
+      "name": "B+5",
+      "type": "passive"
+    },
+    {
+      "id": "B+6",
+      "name": "B+6",
+      "type": "passive"
+    },
+    {
+      "id": "B+7",
+      "name": "B+7",
+      "type": "passive"
+    },
+    {
+      "id": "B+8",
+      "name": "B+8",
+      "type": "passive"
+    },
+    {
+      "id": "B+9",
+      "name": "B+9",
+      "type": "passive"
+    },
+    {
+      "id": "B+10",
+      "name": "B+10",
+      "type": "passive"
+    },
+    {
+      "id": "B+11",
+      "name": "B+11",
+      "type": "passive"
+    },
+    {
+      "id": "B+12",
+      "name": "B+12",
+      "type": "passive"
+    },
+    {
+      "id": "B+13",
+      "name": "B+13",
+      "type": "passive"
+    },
+    {
+      "id": "B+14",
+      "name": "B+14",
+      "type": "passive"
+    },
+    {
+      "id": "B+15",
+      "name": "B+15",
+      "type": "passive"
+    },
+    {
+      "id": "B+16",
+      "name": "B+16",
+      "type": "passive"
+    },
+    {
+      "id": "B+17",
+      "name": "B+17",
+      "type": "passive"
+    },
+    {
+      "id": "B+18",
+      "name": "B+18",
+      "type": "passive"
+    },
+    {
+      "id": "B+19",
+      "name": "B+19",
+      "type": "passive"
+    },
+    {
+      "id": "B+20",
+      "name": "B+20",
+      "type": "passive"
+    },
+    {
+      "id": "B+21",
+      "name": "B+21",
+      "type": "passive"
+    },
+    {
+      "id": "B+22",
+      "name": "B+22",
+      "type": "passive"
+    },
+    {
+      "id": "B+23",
+      "name": "B+23",
+      "type": "passive"
+    },
+    {
+      "id": "B+24",
+      "name": "B+24",
+      "type": "passive"
+    },
+    {
+      "id": "B+25",
+      "name": "B+25",
+      "type": "passive"
+    },
+    {
+      "id": "B+26",
+      "name": "B+26",
+      "type": "passive"
+    },
+    {
+      "id": "B+27",
+      "name": "B+27",
+      "type": "passive"
+    },
+    {
+      "id": "B+28",
+      "name": "B+28",
+      "type": "passive"
+    },
+    {
+      "id": "B+29",
+      "name": "B+29",
+      "type": "passive"
+    },
+    {
+      "id": "B+30",
+      "name": "B+30",
+      "type": "passive"
+    },
+    {
+      "id": "B-1",
+      "name": "B-1",
+      "type": "passive"
+    },
+    {
+      "id": "B-2",
+      "name": "B-2",
+      "type": "passive"
+    },
+    {
+      "id": "B-3",
+      "name": "B-3",
+      "type": "passive"
+    },
+    {
+      "id": "B-4",
+      "name": "B-4",
+      "type": "passive"
+    },
+    {
+      "id": "B-5",
+      "name": "B-5",
+      "type": "passive"
+    },
+    {
+      "id": "B-6",
+      "name": "B-6",
+      "type": "passive"
+    },
+    {
+      "id": "B-7",
+      "name": "B-7",
+      "type": "passive"
+    },
+    {
+      "id": "B-8",
+      "name": "B-8",
+      "type": "passive"
+    },
+    {
+      "id": "B-9",
+      "name": "B-9",
+      "type": "passive"
+    },
+    {
+      "id": "B-10",
+      "name": "B-10",
+      "type": "passive"
+    },
+    {
+      "id": "B-11",
+      "name": "B-11",
+      "type": "passive"
+    },
+    {
+      "id": "B-12",
+      "name": "B-12",
+      "type": "passive"
+    },
+    {
+      "id": "B-13",
+      "name": "B-13",
+      "type": "passive"
+    },
+    {
+      "id": "B-14",
+      "name": "B-14",
+      "type": "passive"
+    },
+    {
+      "id": "B-15",
+      "name": "B-15",
+      "type": "passive"
+    },
+    {
+      "id": "B-16",
+      "name": "B-16",
+      "type": "passive"
+    },
+    {
+      "id": "B-17",
+      "name": "B-17",
+      "type": "passive"
+    },
+    {
+      "id": "B-18",
+      "name": "B-18",
+      "type": "passive"
+    },
+    {
+      "id": "B-19",
+      "name": "B-19",
+      "type": "passive"
+    },
+    {
+      "id": "B-20",
+      "name": "B-20",
+      "type": "passive"
+    },
+    {
+      "id": "B-21",
+      "name": "B-21",
+      "type": "passive"
+    },
+    {
+      "id": "B-22",
+      "name": "B-22",
+      "type": "passive"
+    },
+    {
+      "id": "B-23",
+      "name": "B-23",
+      "type": "passive"
+    },
+    {
+      "id": "B-24",
+      "name": "B-24",
+      "type": "passive"
+    },
+    {
+      "id": "B-25",
+      "name": "B-25",
+      "type": "passive"
+    },
+    {
+      "id": "B-26",
+      "name": "B-26",
+      "type": "passive"
+    },
+    {
+      "id": "B-27",
+      "name": "B-27",
+      "type": "passive"
+    },
+    {
+      "id": "B-28",
+      "name": "B-28",
+      "type": "passive"
+    },
+    {
+      "id": "B-29",
+      "name": "B-29",
+      "type": "passive"
+    },
+    {
+      "id": "B-30",
+      "name": "B-30",
+      "type": "passive"
+    },
+    {
+      "id": "A1",
+      "name": "A1",
+      "type": "passive"
+    },
+    {
+      "id": "A2",
+      "name": "A2",
+      "type": "passive"
+    },
+    {
+      "id": "A3",
+      "name": "A3",
+      "type": "passive"
+    },
+    {
+      "id": "A4",
+      "name": "A4",
+      "type": "passive"
+    },
+    {
+      "id": "A5",
+      "name": "A5",
+      "type": "passive"
+    },
+    {
+      "id": "A6",
+      "name": "A6",
+      "type": "passive"
+    },
+    {
+      "id": "A7",
+      "name": "A7",
+      "type": "passive"
+    },
+    {
+      "id": "A8",
+      "name": "A8",
+      "type": "passive"
+    },
+    {
+      "id": "A9",
+      "name": "A9",
+      "type": "passive"
+    },
+    {
+      "id": "A10",
+      "name": "A10",
+      "type": "passive"
+    },
+    {
+      "id": "A11",
+      "name": "A11",
+      "type": "passive"
+    },
+    {
+      "id": "A12",
+      "name": "A12",
+      "type": "passive"
+    },
+    {
+      "id": "A13",
+      "name": "A13",
+      "type": "passive"
+    },
+    {
+      "id": "A14",
+      "name": "A14",
+      "type": "passive"
+    },
+    {
+      "id": "A15",
+      "name": "A15",
+      "type": "passive"
+    },
+    {
+      "id": "A16",
+      "name": "A16",
+      "type": "passive"
+    },
+    {
+      "id": "A17",
+      "name": "A17",
+      "type": "passive"
+    },
+    {
+      "id": "A18",
+      "name": "A18",
+      "type": "passive"
+    },
+    {
+      "id": "A19",
+      "name": "A19",
+      "type": "passive"
+    },
+    {
+      "id": "A20",
+      "name": "A20",
+      "type": "passive"
+    },
+    {
+      "id": "A21",
+      "name": "A21",
+      "type": "passive"
+    },
+    {
+      "id": "A22",
+      "name": "A22",
+      "type": "passive"
+    },
+    {
+      "id": "A23",
+      "name": "A23",
+      "type": "passive"
+    },
+    {
+      "id": "A24",
+      "name": "A24",
+      "type": "passive"
+    },
+    {
+      "id": "A25",
+      "name": "A25",
+      "type": "passive"
+    },
+    {
+      "id": "A26",
+      "name": "A26",
+      "type": "passive"
+    },
+    {
+      "id": "A27",
+      "name": "A27",
+      "type": "passive"
+    },
+    {
+      "id": "A28",
+      "name": "A28",
+      "type": "passive"
+    },
+    {
+      "id": "A29",
+      "name": "A29",
+      "type": "passive"
+    },
+    {
+      "id": "A30",
+      "name": "A30",
+      "type": "passive"
+    },
+    {
+      "id": "B1",
+      "name": "B1",
+      "type": "passive"
+    },
+    {
+      "id": "B2",
+      "name": "B2",
+      "type": "passive"
+    },
+    {
+      "id": "B3",
+      "name": "B3",
+      "type": "passive"
+    },
+    {
+      "id": "B4",
+      "name": "B4",
+      "type": "passive"
+    },
+    {
+      "id": "B5",
+      "name": "B5",
+      "type": "passive"
+    },
+    {
+      "id": "B6",
+      "name": "B6",
+      "type": "passive"
+    },
+    {
+      "id": "B7",
+      "name": "B7",
+      "type": "passive"
+    },
+    {
+      "id": "B8",
+      "name": "B8",
+      "type": "passive"
+    },
+    {
+      "id": "B9",
+      "name": "B9",
+      "type": "passive"
+    },
+    {
+      "id": "B10",
+      "name": "B10",
+      "type": "passive"
+    },
+    {
+      "id": "B11",
+      "name": "B11",
+      "type": "passive"
+    },
+    {
+      "id": "B12",
+      "name": "B12",
+      "type": "passive"
+    },
+    {
+      "id": "B13",
+      "name": "B13",
+      "type": "passive"
+    },
+    {
+      "id": "B14",
+      "name": "B14",
+      "type": "passive"
+    },
+    {
+      "id": "B15",
+      "name": "B15",
+      "type": "passive"
+    },
+    {
+      "id": "B16",
+      "name": "B16",
+      "type": "passive"
+    },
+    {
+      "id": "B17",
+      "name": "B17",
+      "type": "passive"
+    },
+    {
+      "id": "B18",
+      "name": "B18",
+      "type": "passive"
+    },
+    {
+      "id": "B19",
+      "name": "B19",
+      "type": "passive"
+    },
+    {
+      "id": "B20",
+      "name": "B20",
+      "type": "passive"
+    },
+    {
+      "id": "B21",
+      "name": "B21",
+      "type": "passive"
+    },
+    {
+      "id": "B22",
+      "name": "B22",
+      "type": "passive"
+    },
+    {
+      "id": "B23",
+      "name": "B23",
+      "type": "passive"
+    },
+    {
+      "id": "B24",
+      "name": "B24",
+      "type": "passive"
+    },
+    {
+      "id": "B25",
+      "name": "B25",
+      "type": "passive"
+    },
+    {
+      "id": "B26",
+      "name": "B26",
+      "type": "passive"
+    },
+    {
+      "id": "B27",
+      "name": "B27",
+      "type": "passive"
+    },
+    {
+      "id": "B28",
+      "name": "B28",
+      "type": "passive"
+    },
+    {
+      "id": "B29",
+      "name": "B29",
+      "type": "passive"
+    },
+    {
+      "id": "B30",
+      "name": "B30",
+      "type": "passive"
+    },
+    {
+      "id": "C1",
+      "name": "C1",
+      "type": "passive"
+    },
+    {
+      "id": "C2",
+      "name": "C2",
+      "type": "passive"
+    },
+    {
+      "id": "C3",
+      "name": "C3",
+      "type": "passive"
+    },
+    {
+      "id": "C4",
+      "name": "C4",
+      "type": "passive"
+    },
+    {
+      "id": "C5",
+      "name": "C5",
+      "type": "passive"
+    },
+    {
+      "id": "C6",
+      "name": "C6",
+      "type": "passive"
+    },
+    {
+      "id": "C7",
+      "name": "C7",
+      "type": "passive"
+    },
+    {
+      "id": "C8",
+      "name": "C8",
+      "type": "passive"
+    },
+    {
+      "id": "C9",
+      "name": "C9",
+      "type": "passive"
+    },
+    {
+      "id": "C10",
+      "name": "C10",
+      "type": "passive"
+    },
+    {
+      "id": "C11",
+      "name": "C11",
+      "type": "passive"
+    },
+    {
+      "id": "C12",
+      "name": "C12",
+      "type": "passive"
+    },
+    {
+      "id": "C13",
+      "name": "C13",
+      "type": "passive"
+    },
+    {
+      "id": "C14",
+      "name": "C14",
+      "type": "passive"
+    },
+    {
+      "id": "C15",
+      "name": "C15",
+      "type": "passive"
+    },
+    {
+      "id": "C16",
+      "name": "C16",
+      "type": "passive"
+    },
+    {
+      "id": "C17",
+      "name": "C17",
+      "type": "passive"
+    },
+    {
+      "id": "C18",
+      "name": "C18",
+      "type": "passive"
+    },
+    {
+      "id": "C19",
+      "name": "C19",
+      "type": "passive"
+    },
+    {
+      "id": "C20",
+      "name": "C20",
+      "type": "passive"
+    },
+    {
+      "id": "C21",
+      "name": "C21",
+      "type": "passive"
+    },
+    {
+      "id": "C22",
+      "name": "C22",
+      "type": "passive"
+    },
+    {
+      "id": "C23",
+      "name": "C23",
+      "type": "passive"
+    },
+    {
+      "id": "C24",
+      "name": "C24",
+      "type": "passive"
+    },
+    {
+      "id": "C25",
+      "name": "C25",
+      "type": "passive"
+    },
+    {
+      "id": "C26",
+      "name": "C26",
+      "type": "passive"
+    },
+    {
+      "id": "C27",
+      "name": "C27",
+      "type": "passive"
+    },
+    {
+      "id": "C28",
+      "name": "C28",
+      "type": "passive"
+    },
+    {
+      "id": "C29",
+      "name": "C29",
+      "type": "passive"
+    },
+    {
+      "id": "C30",
+      "name": "C30",
+      "type": "passive"
+    },
+    {
+      "id": "D1",
+      "name": "D1",
+      "type": "passive"
+    },
+    {
+      "id": "D2",
+      "name": "D2",
+      "type": "passive"
+    },
+    {
+      "id": "D3",
+      "name": "D3",
+      "type": "passive"
+    },
+    {
+      "id": "D4",
+      "name": "D4",
+      "type": "passive"
+    },
+    {
+      "id": "D5",
+      "name": "D5",
+      "type": "passive"
+    },
+    {
+      "id": "D6",
+      "name": "D6",
+      "type": "passive"
+    },
+    {
+      "id": "D7",
+      "name": "D7",
+      "type": "passive"
+    },
+    {
+      "id": "D8",
+      "name": "D8",
+      "type": "passive"
+    },
+    {
+      "id": "D9",
+      "name": "D9",
+      "type": "passive"
+    },
+    {
+      "id": "D10",
+      "name": "D10",
+      "type": "passive"
+    },
+    {
+      "id": "D11",
+      "name": "D11",
+      "type": "passive"
+    },
+    {
+      "id": "D12",
+      "name": "D12",
+      "type": "passive"
+    },
+    {
+      "id": "D13",
+      "name": "D13",
+      "type": "passive"
+    },
+    {
+      "id": "D14",
+      "name": "D14",
+      "type": "passive"
+    },
+    {
+      "id": "D15",
+      "name": "D15",
+      "type": "passive"
+    },
+    {
+      "id": "D16",
+      "name": "D16",
+      "type": "passive"
+    },
+    {
+      "id": "D17",
+      "name": "D17",
+      "type": "passive"
+    },
+    {
+      "id": "D18",
+      "name": "D18",
+      "type": "passive"
+    },
+    {
+      "id": "D19",
+      "name": "D19",
+      "type": "passive"
+    },
+    {
+      "id": "D20",
+      "name": "D20",
+      "type": "passive"
+    },
+    {
+      "id": "D21",
+      "name": "D21",
+      "type": "passive"
+    },
+    {
+      "id": "D22",
+      "name": "D22",
+      "type": "passive"
+    },
+    {
+      "id": "D23",
+      "name": "D23",
+      "type": "passive"
+    },
+    {
+      "id": "D24",
+      "name": "D24",
+      "type": "passive"
+    },
+    {
+      "id": "D25",
+      "name": "D25",
+      "type": "passive"
+    },
+    {
+      "id": "D26",
+      "name": "D26",
+      "type": "passive"
+    },
+    {
+      "id": "D27",
+      "name": "D27",
+      "type": "passive"
+    },
+    {
+      "id": "D28",
+      "name": "D28",
+      "type": "passive"
+    },
+    {
+      "id": "D29",
+      "name": "D29",
+      "type": "passive"
+    },
+    {
+      "id": "D30",
+      "name": "D30",
+      "type": "passive"
+    },
+    {
+      "id": "E1",
+      "name": "E1",
+      "type": "passive"
+    },
+    {
+      "id": "E2",
+      "name": "E2",
+      "type": "passive"
+    },
+    {
+      "id": "E3",
+      "name": "E3",
+      "type": "passive"
+    },
+    {
+      "id": "E4",
+      "name": "E4",
+      "type": "passive"
+    },
+    {
+      "id": "E5",
+      "name": "E5",
+      "type": "passive"
+    },
+    {
+      "id": "E6",
+      "name": "E6",
+      "type": "passive"
+    },
+    {
+      "id": "E7",
+      "name": "E7",
+      "type": "passive"
+    },
+    {
+      "id": "E8",
+      "name": "E8",
+      "type": "passive"
+    },
+    {
+      "id": "E9",
+      "name": "E9",
+      "type": "passive"
+    },
+    {
+      "id": "E10",
+      "name": "E10",
+      "type": "passive"
+    },
+    {
+      "id": "E11",
+      "name": "E11",
+      "type": "passive"
+    },
+    {
+      "id": "E12",
+      "name": "E12",
+      "type": "passive"
+    },
+    {
+      "id": "E13",
+      "name": "E13",
+      "type": "passive"
+    },
+    {
+      "id": "E14",
+      "name": "E14",
+      "type": "passive"
+    },
+    {
+      "id": "E15",
+      "name": "E15",
+      "type": "passive"
+    },
+    {
+      "id": "E16",
+      "name": "E16",
+      "type": "passive"
+    },
+    {
+      "id": "E17",
+      "name": "E17",
+      "type": "passive"
+    },
+    {
+      "id": "E18",
+      "name": "E18",
+      "type": "passive"
+    },
+    {
+      "id": "E19",
+      "name": "E19",
+      "type": "passive"
+    },
+    {
+      "id": "E20",
+      "name": "E20",
+      "type": "passive"
+    },
+    {
+      "id": "E21",
+      "name": "E21",
+      "type": "passive"
+    },
+    {
+      "id": "E22",
+      "name": "E22",
+      "type": "passive"
+    },
+    {
+      "id": "E23",
+      "name": "E23",
+      "type": "passive"
+    },
+    {
+      "id": "E24",
+      "name": "E24",
+      "type": "passive"
+    },
+    {
+      "id": "E25",
+      "name": "E25",
+      "type": "passive"
+    },
+    {
+      "id": "E26",
+      "name": "E26",
+      "type": "passive"
+    },
+    {
+      "id": "E27",
+      "name": "E27",
+      "type": "passive"
+    },
+    {
+      "id": "E28",
+      "name": "E28",
+      "type": "passive"
+    },
+    {
+      "id": "E29",
+      "name": "E29",
+      "type": "passive"
+    },
+    {
+      "id": "E30",
+      "name": "E30",
+      "type": "passive"
+    },
+    {
+      "id": "F1",
+      "name": "F1",
+      "type": "passive"
+    },
+    {
+      "id": "F2",
+      "name": "F2",
+      "type": "passive"
+    },
+    {
+      "id": "F3",
+      "name": "F3",
+      "type": "passive"
+    },
+    {
+      "id": "F4",
+      "name": "F4",
+      "type": "passive"
+    },
+    {
+      "id": "F5",
+      "name": "F5",
+      "type": "passive"
+    },
+    {
+      "id": "F6",
+      "name": "F6",
+      "type": "passive"
+    },
+    {
+      "id": "F7",
+      "name": "F7",
+      "type": "passive"
+    },
+    {
+      "id": "F8",
+      "name": "F8",
+      "type": "passive"
+    },
+    {
+      "id": "F9",
+      "name": "F9",
+      "type": "passive"
+    },
+    {
+      "id": "F10",
+      "name": "F10",
+      "type": "passive"
+    },
+    {
+      "id": "F11",
+      "name": "F11",
+      "type": "passive"
+    },
+    {
+      "id": "F12",
+      "name": "F12",
+      "type": "passive"
+    },
+    {
+      "id": "F13",
+      "name": "F13",
+      "type": "passive"
+    },
+    {
+      "id": "F14",
+      "name": "F14",
+      "type": "passive"
+    },
+    {
+      "id": "F15",
+      "name": "F15",
+      "type": "passive"
+    },
+    {
+      "id": "F16",
+      "name": "F16",
+      "type": "passive"
+    },
+    {
+      "id": "F17",
+      "name": "F17",
+      "type": "passive"
+    },
+    {
+      "id": "F18",
+      "name": "F18",
+      "type": "passive"
+    },
+    {
+      "id": "F19",
+      "name": "F19",
+      "type": "passive"
+    },
+    {
+      "id": "F20",
+      "name": "F20",
+      "type": "passive"
+    },
+    {
+      "id": "F21",
+      "name": "F21",
+      "type": "passive"
+    },
+    {
+      "id": "F22",
+      "name": "F22",
+      "type": "passive"
+    },
+    {
+      "id": "F23",
+      "name": "F23",
+      "type": "passive"
+    },
+    {
+      "id": "F24",
+      "name": "F24",
+      "type": "passive"
+    },
+    {
+      "id": "F25",
+      "name": "F25",
+      "type": "passive"
+    },
+    {
+      "id": "F26",
+      "name": "F26",
+      "type": "passive"
+    },
+    {
+      "id": "F27",
+      "name": "F27",
+      "type": "passive"
+    },
+    {
+      "id": "F28",
+      "name": "F28",
+      "type": "passive"
+    },
+    {
+      "id": "F29",
+      "name": "F29",
+      "type": "passive"
+    },
+    {
+      "id": "F30",
+      "name": "F30",
+      "type": "passive"
+    },
+    {
+      "id": "G1",
+      "name": "G1",
+      "type": "passive"
+    },
+    {
+      "id": "G2",
+      "name": "G2",
+      "type": "passive"
+    },
+    {
+      "id": "G3",
+      "name": "G3",
+      "type": "passive"
+    },
+    {
+      "id": "G4",
+      "name": "G4",
+      "type": "passive"
+    },
+    {
+      "id": "G5",
+      "name": "G5",
+      "type": "passive"
+    },
+    {
+      "id": "G6",
+      "name": "G6",
+      "type": "passive"
+    },
+    {
+      "id": "G7",
+      "name": "G7",
+      "type": "passive"
+    },
+    {
+      "id": "G8",
+      "name": "G8",
+      "type": "passive"
+    },
+    {
+      "id": "G9",
+      "name": "G9",
+      "type": "passive"
+    },
+    {
+      "id": "G10",
+      "name": "G10",
+      "type": "passive"
+    },
+    {
+      "id": "G11",
+      "name": "G11",
+      "type": "passive"
+    },
+    {
+      "id": "G12",
+      "name": "G12",
+      "type": "passive"
+    },
+    {
+      "id": "G13",
+      "name": "G13",
+      "type": "passive"
+    },
+    {
+      "id": "G14",
+      "name": "G14",
+      "type": "passive"
+    },
+    {
+      "id": "G15",
+      "name": "G15",
+      "type": "passive"
+    },
+    {
+      "id": "G16",
+      "name": "G16",
+      "type": "passive"
+    },
+    {
+      "id": "G17",
+      "name": "G17",
+      "type": "passive"
+    },
+    {
+      "id": "G18",
+      "name": "G18",
+      "type": "passive"
+    },
+    {
+      "id": "G19",
+      "name": "G19",
+      "type": "passive"
+    },
+    {
+      "id": "G20",
+      "name": "G20",
+      "type": "passive"
+    },
+    {
+      "id": "G21",
+      "name": "G21",
+      "type": "passive"
+    },
+    {
+      "id": "G22",
+      "name": "G22",
+      "type": "passive"
+    },
+    {
+      "id": "G23",
+      "name": "G23",
+      "type": "passive"
+    },
+    {
+      "id": "G24",
+      "name": "G24",
+      "type": "passive"
+    },
+    {
+      "id": "G25",
+      "name": "G25",
+      "type": "passive"
+    },
+    {
+      "id": "G26",
+      "name": "G26",
+      "type": "passive"
+    },
+    {
+      "id": "G27",
+      "name": "G27",
+      "type": "passive"
+    },
+    {
+      "id": "G28",
+      "name": "G28",
+      "type": "passive"
+    },
+    {
+      "id": "G29",
+      "name": "G29",
+      "type": "passive"
+    },
+    {
+      "id": "G30",
+      "name": "G30",
+      "type": "passive"
+    },
+    {
+      "id": "H1",
+      "name": "H1",
+      "type": "passive"
+    },
+    {
+      "id": "H2",
+      "name": "H2",
+      "type": "passive"
+    },
+    {
+      "id": "H3",
+      "name": "H3",
+      "type": "passive"
+    },
+    {
+      "id": "H4",
+      "name": "H4",
+      "type": "passive"
+    },
+    {
+      "id": "H5",
+      "name": "H5",
+      "type": "passive"
+    },
+    {
+      "id": "H6",
+      "name": "H6",
+      "type": "passive"
+    },
+    {
+      "id": "H7",
+      "name": "H7",
+      "type": "passive"
+    },
+    {
+      "id": "H8",
+      "name": "H8",
+      "type": "passive"
+    },
+    {
+      "id": "H9",
+      "name": "H9",
+      "type": "passive"
+    },
+    {
+      "id": "H10",
+      "name": "H10",
+      "type": "passive"
+    },
+    {
+      "id": "H11",
+      "name": "H11",
+      "type": "passive"
+    },
+    {
+      "id": "H12",
+      "name": "H12",
+      "type": "passive"
+    },
+    {
+      "id": "H13",
+      "name": "H13",
+      "type": "passive"
+    },
+    {
+      "id": "H14",
+      "name": "H14",
+      "type": "passive"
+    },
+    {
+      "id": "H15",
+      "name": "H15",
+      "type": "passive"
+    },
+    {
+      "id": "H16",
+      "name": "H16",
+      "type": "passive"
+    },
+    {
+      "id": "H17",
+      "name": "H17",
+      "type": "passive"
+    },
+    {
+      "id": "H18",
+      "name": "H18",
+      "type": "passive"
+    },
+    {
+      "id": "H19",
+      "name": "H19",
+      "type": "passive"
+    },
+    {
+      "id": "H20",
+      "name": "H20",
+      "type": "passive"
+    },
+    {
+      "id": "H21",
+      "name": "H21",
+      "type": "passive"
+    },
+    {
+      "id": "H22",
+      "name": "H22",
+      "type": "passive"
+    },
+    {
+      "id": "H23",
+      "name": "H23",
+      "type": "passive"
+    },
+    {
+      "id": "H24",
+      "name": "H24",
+      "type": "passive"
+    },
+    {
+      "id": "H25",
+      "name": "H25",
+      "type": "passive"
+    },
+    {
+      "id": "H26",
+      "name": "H26",
+      "type": "passive"
+    },
+    {
+      "id": "H27",
+      "name": "H27",
+      "type": "passive"
+    },
+    {
+      "id": "H28",
+      "name": "H28",
+      "type": "passive"
+    },
+    {
+      "id": "H29",
+      "name": "H29",
+      "type": "passive"
+    },
+    {
+      "id": "H30",
+      "name": "H30",
+      "type": "passive"
+    },
+    {
+      "id": "I1",
+      "name": "I1",
+      "type": "passive"
+    },
+    {
+      "id": "I2",
+      "name": "I2",
+      "type": "passive"
+    },
+    {
+      "id": "I3",
+      "name": "I3",
+      "type": "passive"
+    },
+    {
+      "id": "I4",
+      "name": "I4",
+      "type": "passive"
+    },
+    {
+      "id": "I5",
+      "name": "I5",
+      "type": "passive"
+    },
+    {
+      "id": "I6",
+      "name": "I6",
+      "type": "passive"
+    },
+    {
+      "id": "I7",
+      "name": "I7",
+      "type": "passive"
+    },
+    {
+      "id": "I8",
+      "name": "I8",
+      "type": "passive"
+    },
+    {
+      "id": "I9",
+      "name": "I9",
+      "type": "passive"
+    },
+    {
+      "id": "I10",
+      "name": "I10",
+      "type": "passive"
+    },
+    {
+      "id": "I11",
+      "name": "I11",
+      "type": "passive"
+    },
+    {
+      "id": "I12",
+      "name": "I12",
+      "type": "passive"
+    },
+    {
+      "id": "I13",
+      "name": "I13",
+      "type": "passive"
+    },
+    {
+      "id": "I14",
+      "name": "I14",
+      "type": "passive"
+    },
+    {
+      "id": "I15",
+      "name": "I15",
+      "type": "passive"
+    },
+    {
+      "id": "I16",
+      "name": "I16",
+      "type": "passive"
+    },
+    {
+      "id": "I17",
+      "name": "I17",
+      "type": "passive"
+    },
+    {
+      "id": "I18",
+      "name": "I18",
+      "type": "passive"
+    },
+    {
+      "id": "I19",
+      "name": "I19",
+      "type": "passive"
+    },
+    {
+      "id": "I20",
+      "name": "I20",
+      "type": "passive"
+    },
+    {
+      "id": "I21",
+      "name": "I21",
+      "type": "passive"
+    },
+    {
+      "id": "I22",
+      "name": "I22",
+      "type": "passive"
+    },
+    {
+      "id": "I23",
+      "name": "I23",
+      "type": "passive"
+    },
+    {
+      "id": "I24",
+      "name": "I24",
+      "type": "passive"
+    },
+    {
+      "id": "I25",
+      "name": "I25",
+      "type": "passive"
+    },
+    {
+      "id": "I26",
+      "name": "I26",
+      "type": "passive"
+    },
+    {
+      "id": "I27",
+      "name": "I27",
+      "type": "passive"
+    },
+    {
+      "id": "I28",
+      "name": "I28",
+      "type": "passive"
+    },
+    {
+      "id": "I29",
+      "name": "I29",
+      "type": "passive"
+    },
+    {
+      "id": "I30",
+      "name": "I30",
+      "type": "passive"
+    },
+    {
+      "id": "J1",
+      "name": "J1",
+      "type": "passive"
+    },
+    {
+      "id": "J2",
+      "name": "J2",
+      "type": "passive"
+    },
+    {
+      "id": "J3",
+      "name": "J3",
+      "type": "passive"
+    },
+    {
+      "id": "J4",
+      "name": "J4",
+      "type": "passive"
+    },
+    {
+      "id": "J5",
+      "name": "J5",
+      "type": "passive"
+    },
+    {
+      "id": "J6",
+      "name": "J6",
+      "type": "passive"
+    },
+    {
+      "id": "J7",
+      "name": "J7",
+      "type": "passive"
+    },
+    {
+      "id": "J8",
+      "name": "J8",
+      "type": "passive"
+    },
+    {
+      "id": "J9",
+      "name": "J9",
+      "type": "passive"
+    },
+    {
+      "id": "J10",
+      "name": "J10",
+      "type": "passive"
+    },
+    {
+      "id": "J11",
+      "name": "J11",
+      "type": "passive"
+    },
+    {
+      "id": "J12",
+      "name": "J12",
+      "type": "passive"
+    },
+    {
+      "id": "J13",
+      "name": "J13",
+      "type": "passive"
+    },
+    {
+      "id": "J14",
+      "name": "J14",
+      "type": "passive"
+    },
+    {
+      "id": "J15",
+      "name": "J15",
+      "type": "passive"
+    },
+    {
+      "id": "J16",
+      "name": "J16",
+      "type": "passive"
+    },
+    {
+      "id": "J17",
+      "name": "J17",
+      "type": "passive"
+    },
+    {
+      "id": "J18",
+      "name": "J18",
+      "type": "passive"
+    },
+    {
+      "id": "J19",
+      "name": "J19",
+      "type": "passive"
+    },
+    {
+      "id": "J20",
+      "name": "J20",
+      "type": "passive"
+    },
+    {
+      "id": "J21",
+      "name": "J21",
+      "type": "passive"
+    },
+    {
+      "id": "J22",
+      "name": "J22",
+      "type": "passive"
+    },
+    {
+      "id": "J23",
+      "name": "J23",
+      "type": "passive"
+    },
+    {
+      "id": "J24",
+      "name": "J24",
+      "type": "passive"
+    },
+    {
+      "id": "J25",
+      "name": "J25",
+      "type": "passive"
+    },
+    {
+      "id": "J26",
+      "name": "J26",
+      "type": "passive"
+    },
+    {
+      "id": "J27",
+      "name": "J27",
+      "type": "passive"
+    },
+    {
+      "id": "J28",
+      "name": "J28",
+      "type": "passive"
+    },
+    {
+      "id": "J29",
+      "name": "J29",
+      "type": "passive"
+    },
+    {
+      "id": "J30",
+      "name": "J30",
+      "type": "passive"
+    }
+  ],
+  "footprints": [
+    "Breadboard_Half_400"
+  ],
+  "keywords": [
+    "breadboard",
+    "half",
+    "400",
+    "prototype",
+    "board"
+  ]
+}

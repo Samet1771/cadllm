@@ -1,0 +1,52 @@
+{
+  "id": "pnp",
+  "name": "2N3906 PNP Transistor",
+  "summary": "general-purpose PNP BJT (2N3906)",
+  "category": "transistor",
+  "refPrefix": "Q",
+  "pins": [
+    {
+      "id": "1",
+      "name": "E",
+      "aliases": [
+        "emitter"
+      ],
+      "type": "passive"
+    },
+    {
+      "id": "2",
+      "name": "B",
+      "aliases": [
+        "base"
+      ],
+      "type": "passive"
+    },
+    {
+      "id": "3",
+      "name": "C",
+      "aliases": [
+        "collector"
+      ],
+      "type": "passive"
+    }
+  ],
+  "sim": [
+    {
+      "kind": "spice",
+      "ref": "Q2N3906"
+    }
+  ],
+  "footprints": [
+    "TO-92",
+    "SOT-23"
+  ],
+  "keywords": [
+    "pnp",
+    "bjt",
+    "transistor",
+    "2n3906",
+    "amplifier",
+    "switch"
+  ],
+  "datasheet": "https://www.onsemi.com/pdf/datasheet/2n3906-d.pdf"
+}

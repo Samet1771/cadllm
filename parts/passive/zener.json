@@ -1,0 +1,55 @@
+{
+  "id": "zener",
+  "name": "Zener Diode",
+  "summary": "voltage-regulating Zener diode",
+  "category": "passive",
+  "refPrefix": "D",
+  "pins": [
+    {
+      "id": "1",
+      "name": "A",
+      "aliases": [
+        "anode",
+        "+"
+      ],
+      "type": "passive"
+    },
+    {
+      "id": "2",
+      "name": "K",
+      "aliases": [
+        "cathode",
+        "-"
+      ],
+      "type": "passive"
+    }
+  ],
+  "props": {
+    "voltage": {
+      "type": "number",
+      "unit": "V",
+      "default": "5.1",
+      "description": "Zener breakdown voltage"
+    }
+  },
+  "valueProp": "voltage",
+  "sim": [
+    {
+      "kind": "spice",
+      "ref": "DZ"
+    }
+  ],
+  "footprints": [
+    "THT-axial",
+    "DO-35",
+    "DO-41"
+  ],
+  "keywords": [
+    "zener",
+    "diode",
+    "clamp",
+    "regulator",
+    "reference"
+  ],
+  "datasheet": "https://www.onsemi.com/pdf/datasheet/1n4728a-d.pdf"
+}

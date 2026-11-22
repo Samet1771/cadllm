@@ -1,0 +1,78 @@
+{
+  "id": "ne555",
+  "name": "NE555 Timer",
+  "summary": "precision timer / oscillator IC",
+  "category": "ic",
+  "refPrefix": "U",
+  "pins": [
+    {
+      "id": "1",
+      "name": "GND",
+      "type": "power_in"
+    },
+    {
+      "id": "2",
+      "name": "TRIG",
+      "type": "input"
+    },
+    {
+      "id": "3",
+      "name": "OUT",
+      "type": "output"
+    },
+    {
+      "id": "4",
+      "name": "RESET",
+      "type": "input"
+    },
+    {
+      "id": "5",
+      "name": "CTRL",
+      "aliases": [
+        "CONT"
+      ],
+      "type": "input"
+    },
+    {
+      "id": "6",
+      "name": "THR",
+      "aliases": [
+        "THRES"
+      ],
+      "type": "input"
+    },
+    {
+      "id": "7",
+      "name": "DIS",
+      "aliases": [
+        "DISCH"
+      ],
+      "type": "open_collector"
+    },
+    {
+      "id": "8",
+      "name": "VCC",
+      "type": "power_in"
+    }
+  ],
+  "sim": [
+    {
+      "kind": "spice",
+      "ref": "NE555"
+    }
+  ],
+  "footprints": [
+    "DIP-8",
+    "SOIC-8"
+  ],
+  "keywords": [
+    "555",
+    "ne555",
+    "timer",
+    "oscillator",
+    "pwm",
+    "astable",
+    "monostable"
+  ],
+  "datasheet": "https://www.ti.com/product/NE555"
+}

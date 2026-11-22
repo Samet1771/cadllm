@@ -1,0 +1,14 @@
+{
+  "name": "@cadllm/library",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Part library loader and search",
+  "license": "GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@cadllm/core": "*"
+  }
+}
