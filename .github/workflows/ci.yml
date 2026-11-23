@@ -1,0 +1,85 @@
+# SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install arduino-cli
+        uses: arduino/setup-arduino-cli@81d310742121c928ea9c8bbd407b4217b432ae02 # v2.0.0
+
+      - name: Cache Arduino AVR core
+        id: arduino-avr-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.arduino15
+            ~/AppData/Local/Arduino15
+          key: ${{ runner.os }}-arduino-avr-v1
+
+      - name: Install Arduino AVR core
+        run: arduino-cli core install arduino:avr
+
+      - name: Run typecheck and tests
+        run: npm run check
+
+      - name: Typecheck UI
+        run: npm run typecheck -w @cadllm/ui
+
+      - name: Build UI
+        run: npm run build -w @cadllm/ui
+
+      - name: Run MCP token benchmark
+        run: npm run bench
+
+  # Placeholder for desktop package build (packages/desktop is built in parallel):
+  # desktop:
+  #   name: Desktop (${{ matrix.os }})
+  #   needs: check
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       os:
+  #         - ubuntu-latest
+  #         - windows-latest
+  #   runs-on: ${{ matrix.os }}
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+  #     - name: Set up Node.js 24
+  #       uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+  #       with:
+  #         node-version: 24
+  #         cache: npm
+  #     - name: Install dependencies
+  #       run: npm ci
+  #     - name: Build UI
+  #       run: npm run build -w @cadllm/ui
+  #     - name: Build desktop package
+  #       run: npm run build -w @cadllm/desktop

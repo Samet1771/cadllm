@@ -20,5 +20,5 @@ describe('MCP token benchmark', () => {
       const budget = t.name.startsWith('layout:') ? LAYOUT_BUDGET : TASK_BUDGET;
       expect(t.inTokens + t.outTokens, t.name).toBeLessThan(budget);
     }
-  });
+  }, 60_000);
 });

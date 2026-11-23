@@ -8,9 +8,10 @@ import { builtinPartsDir, loadLibrary } from '@cadllm/library';
 import { findServe, proxyStdio, removeServeFile, resolveServeDir, writeServeFile, type FindServeOptions } from './attach.ts';
 import { createMcpHandler } from './mcpHttp.ts';
 import { serveStatic } from './static.ts';
-import { attachWebSocket } from './ws.ts';
+import { attachWebSocket, type ActiveProjectInfo, type AttachWebSocketOptions, type ProjectCommandArgs, type ProjectCommandResult } from './ws.ts';
 
 export { findServe, proxyStdio, type FindServeOptions };
+export type { ActiveProjectInfo, AttachWebSocketOptions, ProjectCommandArgs, ProjectCommandResult };
 
 export interface ServeOptions {
   port?: number;
@@ -22,12 +23,18 @@ export interface ServeOptions {
   serveFileDir?: string;
   /** Override `packages/ui/dist` directory. */
   uiDistDir?: string;
+  /** Override built-in part library directories (defaults to `[builtinPartsDir]`). */
+  partsDirs?: string[];
+  /** Optional WebSocket and plugin runtime options forwarded to `attachWebSocket`. */
+  wsOptions?: AttachWebSocketOptions;
 }
 
 export interface RunningServer {
   url: string;
   port: number;
   close(): Promise<void>;
+  activeProject?: () => ActiveProjectInfo;
+  projectCommand?: (args: ProjectCommandArgs) => ProjectCommandResult;
 }
 
 const DEFAULT_PORT = 5170;
@@ -40,7 +47,7 @@ export async function startServer(opts: ServeOptions = {}): Promise<RunningServe
   const uiDistDir = opts.uiDistDir ?? DEFAULT_UI_DIST;
   const serveDir = resolveServeDir(opts.serveFileDir);
 
-  const library = loadLibrary([builtinPartsDir]);
+  const library = loadLibrary(opts.partsDirs ?? [builtinPartsDir]);
   const workspace = new Workspace({ library, ...(opts.root ? { root: opts.root } : {}) });
 
   let defaultProject: string | undefined;
@@ -77,7 +84,7 @@ export async function startServer(opts: ServeOptions = {}): Promise<RunningServe
     });
   });
 
-  const ws = attachWebSocket(httpServer, workspace, defaultProject);
+  const ws = attachWebSocket(httpServer, workspace, defaultProject, opts.wsOptions);
 
   await new Promise<void>((resolveListen, rejectListen) => {
     const onError = (err: Error) => rejectListen(err);
@@ -103,13 +110,20 @@ export async function startServer(opts: ServeOptions = {}): Promise<RunningServe
     removeServeFile(serveDir);
     ws.closeAll();
     await mcp.closeAll();
+    await workspace.plugins?.dispose();
     await new Promise<void>((resolveClose, rejectClose) => {
       httpServer.close(err => (err ? rejectClose(err) : resolveClose()));
       httpServer.closeAllConnections();
     });
   }
 
-  return { url, port: actualPort, close };
+  return {
+    url,
+    port: actualPort,
+    close,
+    activeProject: ws.activeProject,
+    projectCommand: ws.projectCommand,
+  };
 }
 
 /** CLI entry point for `cadllm serve [file.cnl] [--port 5170]`. */

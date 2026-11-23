@@ -2,7 +2,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { CadError, errorText, type PartDef, type Query } from '@cadllm/core';
 import { validatePart } from '@cadllm/library';
@@ -37,16 +37,39 @@ function findPkgDir(filePath: string): string {
   return dir;
 }
 
-const req = createRequire(import.meta.url);
-const PLUGIN_API_ENTRY = realpathSync(req.resolve('@cadllm/plugin-api'));
-const PLUGIN_API_DIR = findPkgDir(PLUGIN_API_ENTRY);
-const ZOD_DIR = dirname(realpathSync(createRequire(PLUGIN_API_ENTRY).resolve('zod/package.json')));
+interface DefaultApiDirs {
+  pluginApiDir: string;
+  zodDir: string | null;
+}
+
+let cachedDefaultApiDirs: DefaultApiDirs | undefined;
+
+function getDefaultApiDirs(): DefaultApiDirs {
+  if (cachedDefaultApiDirs) return cachedDefaultApiDirs;
+  const req = createRequire(import.meta.url);
+  const entry = realpathSync(req.resolve('@cadllm/plugin-api'));
+  const pluginApiDir = findPkgDir(entry);
+  let zodDir: string | null = null;
+  try {
+    zodDir = dirname(realpathSync(createRequire(entry).resolve('zod/package.json')));
+  } catch {
+    zodDir = null;
+  }
+  cachedDefaultApiDirs = { pluginApiDir, zodDir };
+  return cachedDefaultApiDirs;
+}
 
 export interface SandboxArgsOptions {
   /** Plugin root directory granted `--allow-fs-read`. */
   pluginDir?: string;
   /** Additional bootstrap/runtime files granted `--allow-fs-read`. */
   bootstrapFiles?: readonly string[];
+  /** Override preloaded network guard path (defaults to `NETWORK_GUARD_PATH`). */
+  networkGuardPath?: string;
+  /** Override `@cadllm/plugin-api` directory granted `--allow-fs-read`. */
+  pluginApiDir?: string;
+  /** Override `zod` directory granted `--allow-fs-read` (`null` omits it when bundled). */
+  zodDir?: string | null;
 }
 
 function addUnique(list: string[], value: string): void {
@@ -73,11 +96,14 @@ export function sandboxArgs(
   const readPaths: string[] = [];
   const writePaths: string[] = [];
   const pluginDir = opts.pluginDir ? resolve(opts.pluginDir) : undefined;
+  const guardPath = opts.networkGuardPath ? resolve(opts.networkGuardPath) : NETWORK_GUARD_PATH;
+  const apiDir = opts.pluginApiDir ? resolve(opts.pluginApiDir) : getDefaultApiDirs().pluginApiDir;
+  const zodDir = opts.zodDir === undefined ? getDefaultApiDirs().zodDir : (opts.zodDir ? resolve(opts.zodDir) : null);
 
   if (pluginDir) addUnique(readPaths, pluginDir);
-  addUnique(readPaths, NETWORK_GUARD_PATH);
-  addUnique(readPaths, PLUGIN_API_DIR);
-  addUnique(readPaths, ZOD_DIR);
+  addUnique(readPaths, guardPath);
+  addUnique(readPaths, apiDir);
+  if (zodDir) addUnique(readPaths, zodDir);
   for (const f of opts.bootstrapFiles ?? []) {
     if (f.trim()) addUnique(readPaths, resolve(f));
   }
@@ -95,7 +121,7 @@ export function sandboxArgs(
   const args: string[] = ['--permission'];
   for (const p of readPaths) args.push(`--allow-fs-read=${p}`);
   for (const p of writePaths) args.push(`--allow-fs-write=${p}`);
-  args.push('--import', pathToFileURL(NETWORK_GUARD_PATH).href);
+  args.push('--import', pathToFileURL(guardPath).href);
   return args;
 }
 
@@ -157,6 +183,41 @@ export interface PluginHostOptions {
   crashBackoffMs?: number;
   /** Default RPC capability callbacks for `project.read`, `project.edit`, and `parts.get/search`. */
   context?: PluginRpcContext;
+  /** Override Node-compatible runtime executable path for code plugins. */
+  runtimePath?: string;
+  /** Set `ELECTRON_RUN_AS_NODE=1` when spawning code plugins (auto-detected under Electron). */
+  runAsNode?: boolean;
+  /** Override preloaded network guard path (`guard.mjs`). */
+  networkGuardPath?: string;
+  /** Override `@cadllm/plugin-api` entry file path (granted `--allow-fs-read` and resolved by the guard). */
+  pluginApiEntry?: string;
+  /** Override `zod` directory granted `--allow-fs-read` (`null` omits it when bundled into `pluginApiEntry`). */
+  zodDir?: string | null;
+}
+
+export interface PluginRuntimeConfig {
+  execPath: string;
+  runAsNode: boolean;
+}
+
+/** Resolve the Node-compatible binary and Electron `ELECTRON_RUN_AS_NODE` mode for plugin child processes. */
+export function resolvePluginRuntime(opts: {
+  runtimePath?: string;
+  runAsNode?: boolean;
+  env?: Record<string, string | undefined>;
+  execPath?: string;
+  versions?: Record<string, string | undefined>;
+} = {}): PluginRuntimeConfig {
+  const env = opts.env ?? process.env;
+  const currentExecPath = opts.execPath ?? process.execPath;
+  const explicitPath = opts.runtimePath?.trim() || env.CADLLM_PLUGIN_RUNTIME?.trim() || env.CADLLM_NODE_PATH?.trim();
+  const execPath = explicitPath || currentExecPath;
+  const versions = opts.versions ?? process.versions;
+  const isElectronBinary =
+    (execPath === currentExecPath && Boolean(versions.electron)) ||
+    /^electron(?:\.exe)?$/i.test(basename(execPath));
+  const runAsNode = opts.runAsNode ?? isElectronBinary;
+  return { execPath, runAsNode };
 }
 
 interface PendingRpc {
@@ -224,13 +285,14 @@ function appendStderr(rec: PluginRecord, chunk: string): void {
   rec.stderrBuf = (rec.stderrBuf + tail).slice(-MAX_STDERR_BYTES);
 }
 
-function childEnv(allowedHosts: string[]): Record<string, string> {
+function childEnv(allowedHosts: string[], extra?: Record<string, string>): Record<string, string> {
   const env: Record<string, string> = {};
   const pathVal = process.env.PATH ?? process.env.Path;
   if (pathVal !== undefined) env.PATH = pathVal;
   const sysRoot = process.env.SYSTEMROOT ?? process.env.SystemRoot;
   if (sysRoot !== undefined) env.SYSTEMROOT = sysRoot;
   if (allowedHosts.length > 0) env.CADLLM_ALLOWED_HOSTS = allowedHosts.join(',');
+  if (extra) Object.assign(env, extra);
   return env;
 }
 
@@ -614,13 +676,30 @@ export class PluginHost {
       .map(g => g.slice(4).trim().toLowerCase())
       .filter(Boolean);
 
-    const args = [...sandboxArgs(rec.manifest, rec.grants, { pluginDir: rec.dir }), entryPath];
+    const pluginApiEntry = this.opts.pluginApiEntry ? resolve(this.opts.pluginApiEntry) : undefined;
+    const args = [
+      ...sandboxArgs(rec.manifest, rec.grants, {
+        pluginDir: rec.dir,
+        ...(this.opts.networkGuardPath ? { networkGuardPath: this.opts.networkGuardPath } : {}),
+        ...(pluginApiEntry ? { pluginApiDir: findPkgDir(pluginApiEntry) } : {}),
+        ...(this.opts.zodDir !== undefined ? { zodDir: this.opts.zodDir } : {}),
+      }),
+      entryPath,
+    ];
     rec.stderrBuf = '';
     rec.activeContext = ctx ?? this.context;
 
-    const child = spawn(process.execPath, args, {
+    const runtime = resolvePluginRuntime({
+      ...(this.opts.runtimePath !== undefined ? { runtimePath: this.opts.runtimePath } : {}),
+      ...(this.opts.runAsNode !== undefined ? { runAsNode: this.opts.runAsNode } : {}),
+    });
+    const extraEnv: Record<string, string> = {};
+    if (runtime.runAsNode) extraEnv.ELECTRON_RUN_AS_NODE = '1';
+    if (pluginApiEntry) extraEnv.CADLLM_PLUGIN_API_PATH = pluginApiEntry;
+
+    const child = spawn(runtime.execPath, args, {
       cwd: rec.dir,
-      env: childEnv(allowedHosts),
+      env: childEnv(allowedHosts, extraEnv),
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
     });

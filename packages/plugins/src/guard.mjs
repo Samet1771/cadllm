@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
 // Preloaded into plugin child processes via `node --import <NETWORK_GUARD_PATH>` (M4 WP1).
 import { registerHooks } from 'node:module';
+import { pathToFileURL } from 'node:url';
 
-const PLUGIN_API_URL = new URL('../../plugin-api/src/index.ts', import.meta.url).href;
+const rawPluginApiPath = process.env.CADLLM_PLUGIN_API_PATH;
+delete process.env.CADLLM_PLUGIN_API_PATH;
+const PLUGIN_API_URL = rawPluginApiPath
+  ? pathToFileURL(rawPluginApiPath).href
+  : new URL('../../plugin-api/src/index.ts', import.meta.url).href;
 
 registerHooks({
   resolve(specifier, context, nextResolve) {

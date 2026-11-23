@@ -1,0 +1,34 @@
+{
+  "name": "@cadllm/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Windows desktop application (Electron) for CadLLM",
+  "license": "GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception",
+  "author": "CadLLM Contributors",
+  "type": "module",
+  "main": "dist/main.mjs",
+  "scripts": {
+    "dev": "node scripts/dev.ts",
+    "build": "node scripts/build.ts",
+    "dist": "node scripts/dist.ts",
+    "smoke": "node scripts/smoke.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2"
+  },
+  "devDependencies": {
+    "@cadllm/core": "*",
+    "@cadllm/engine": "*",
+    "@cadllm/library": "*",
+    "@cadllm/mcp": "*",
+    "@cadllm/plugin-api": "*",
+    "@cadllm/plugins": "*",
+    "@cadllm/registry": "*",
+    "@cadllm/server": "*",
+    "@cadllm/sim-mcu": "*",
+    "@cadllm/sim-spice": "*",
+    "electron": "45.4.1",
+    "electron-builder": "26.18.0"
+  }
+}

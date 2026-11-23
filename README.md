@@ -69,9 +69,31 @@ node packages/cli/src/main.ts plugin install org.cadllm.example-sensors --yes-gr
 
 Installed plugin tools are exposed over MCP via `ext` (`ext op=list`, `ext op=call name=calc_divider args={"vin":5,"vout":3.3}`), while AI clients cannot install plugins or grant permissions. Plugins that use only `@cadllm/plugin-api` may use any license (see [LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md)); see [plugins/example-sensors/](plugins/example-sensors/) as a template.
 
+## Website & CI
+
+Build the static GitHub Pages site and plugin store locally into `site/dist/` (gitignored):
+
+```sh
+npm run site       # runs node site/build.ts
+```
+
+`site/build.ts` is a zero-dependency static site generator that outputs:
+
+- `/` (`site/dist/index.html`) — Landing page with architecture overview, CNL + MCP transcript, and quick-start commands.
+- `/app/` (`site/dist/app/`) — The `@cadllm/ui` web application built in serverless demo mode (`VITE_DEMO=1`) with canned Arduino, digital logic, and PCB circuits.
+- `/plugins/` (`site/dist/plugins/index.html`) — The browser Plugin Store. It fetches `registry/index.json` and `registry/index.sig` and verifies both the root registry signature and every publisher version signature in the browser using **WebCrypto Ed25519** over canonical JSON against the embedded root registry public key.
+- `/registry/` (`site/dist/registry/`) — Raw `index.json`, `index.sig`, `registry.pub`, `publishers/*.pub`, and `.cnlplugin` archives so the CLI can use `https://samet1771.github.io/cadllm/registry/` directly as a `--index` URL.
+- `/docs/` (`site/dist/docs/`) — Rendered HTML pages for [docs/FOUNDATION.md](docs/FOUNDATION.md), the `M0`–`M4` milestone plans, [LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md), and [CONTRIBUTING.md](CONTRIBUTING.md).
+
+### GitHub Actions Workflows
+
+- **CI (`.github/workflows/ci.yml`):** Runs on every push and pull request across a matrix of `ubuntu-latest` and `windows-latest` on Node 24 (`npm ci`, pinned `arduino/setup-arduino-cli` + cached `arduino:avr` core, `npm run check`, `npm run typecheck -w @cadllm/ui`, `npm run build -w @cadllm/ui`, and `npm run bench`).
+- **Pages (`.github/workflows/pages.yml`):** Builds `site/dist/` on push to `main` and deploys to GitHub Pages via `actions/upload-pages-artifact` and `actions/deploy-pages`.
+  - **Private repository note:** GitHub Pages is unavailable for private repositories on the GitHub Free plan. While `Samet1771/cadllm` is private, the `build` job still verifies and uploads the site artifact, and the `deploy` job is automatically skipped (`if: ${{ !github.event.repository.private }}`). Once the repository is made public by the owner, pushes to `main` will deploy to `https://samet1771.github.io/cadllm/` automatically.
+
 ## License
 
 The plugin exception is a draft pending legal review.
 
 GPL-3.0-or-later with the [CadLLM plugin exception](LICENSE-EXCEPTION.md). Plugins that use only the public plugin API may use any license.
-Contributions are accepted under the [DCO](https://developercertificate.org/) (`git commit -s`).
+Contributions are accepted under the [DCO](https://developercertificate.org/) (`git commit -s`); see [CONTRIBUTING.md](CONTRIBUTING.md).

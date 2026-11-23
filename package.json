@@ -17,11 +17,16 @@
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json",
     "bench": "node packages/cli/src/main.ts bench",
+    "site": "node site/build.ts",
     "check": "npm run typecheck && npm test"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
     "typescript": "^7.0.2",
     "vitest": "^5.1.1"
+  },
+  "allowScripts": {
+    "electron@45.4.1": true,
+    "electron-winstaller@5.4.0": true
   }
 }

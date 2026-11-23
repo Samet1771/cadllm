@@ -2,7 +2,7 @@
 import { lstatSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import type { Server as HttpServer } from 'node:http';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
-import { CadError, errorText, type ChangeSource, type Circuit, type PartDef } from '@cadllm/core';
+import { CadError, emptyDelta, errorText, type ChangeSource, type Circuit, type PartDef } from '@cadllm/core';
 import { printDelta } from '@cadllm/dsl';
 import { Engine, type Workspace } from '@cadllm/engine';
 import { TOOLS } from '@cadllm/mcp';
@@ -136,8 +136,8 @@ const MAX_PANEL_EDIT_BYTES = 32 * 1024;
 
 export interface PluginRegistryApi {
   resolveStateDir(override?: string): string;
-  loadIndex(url?: string): Promise<RegistryIndex>;
-  verifyIndex(index: RegistryIndex, registryPublicKey?: string): boolean;
+  loadIndex(url?: string, opts?: { stateDir?: string }): Promise<RegistryIndex>;
+  verifyIndex(index: RegistryIndex, registryPublicKey?: string, opts?: { stateDir?: string }): boolean;
   resolve(index: RegistryIndex, id: string, range?: string, engineVersion?: string): ReturnType<typeof defaultResolve>;
   install(
     entry: Parameters<typeof defaultInstall>[0],
@@ -233,15 +233,44 @@ function wrapPanelEntryHtml(mainPath: string, raw: string): string {
   return raw;
 }
 
+export interface ActiveProjectInfo {
+  name: string;
+  path?: string;
+  rev: number;
+  dirty: boolean;
+}
+
+export interface ProjectCommandArgs {
+  op: 'new' | 'open' | 'save' | 'use';
+  name?: string;
+  path?: string;
+}
+
+export interface ProjectCommandResult {
+  result: string;
+  project: string;
+  path?: string;
+  rev: number;
+}
+
+export interface AttachedWebSocket {
+  closeAll(): void;
+  activeProject(): ActiveProjectInfo;
+  projectCommand(args: ProjectCommandArgs): ProjectCommandResult;
+}
+
 /** Attach the `/ws` JSON-RPC 2.0 WebSocket server to `httpServer` over one shared `Workspace`. */
 export function attachWebSocket(
   httpServer: HttpServer,
   workspace: Workspace,
   defaultProject?: string,
   opts: AttachWebSocketOptions = {},
-): { closeAll(): void } {
+): AttachedWebSocket {
   const wss = new WebSocketServer({ noServer: true });
   const sockets = new Set<WebSocket>();
+  const sessionEngines = new Map<WebSocket, Engine>();
+  let lastFocusedWs: WebSocket | undefined;
+  let currentDefaultProject = defaultProject;
 
   const registry: PluginRegistryApi = {
     resolveStateDir: opts.registry?.resolveStateDir ?? defaultResolveStateDir,
@@ -324,8 +353,8 @@ export function attachWebSocket(
   };
 
   const readVerifiedIndex = async (): Promise<RegistryIndex> => {
-    const index = await registry.loadIndex(opts.indexUrl);
-    if (!registry.verifyIndex(index, opts.registryPublicKey)) {
+    const index = await registry.loadIndex(opts.indexUrl, { stateDir });
+    if (!registry.verifyIndex(index, opts.registryPublicKey, { stateDir })) {
       throw new CadError('invalid', 'registry index signature verification failed');
     }
     return index;
@@ -353,6 +382,7 @@ export function attachWebSocket(
         const installed = await registry.install(resolved, {
           stateDir,
           index,
+          ...(opts.registryPublicKey ? { registryPublicKey: opts.registryPublicKey } : {}),
           grant: [],
         });
         tryLoadPlugin(installed.dir, installed.id, []);
@@ -549,9 +579,11 @@ export function attachWebSocket(
 
   wss.on('connection', ws => {
     sockets.add(ws);
+    lastFocusedWs = ws;
     const engine = new Engine({ workspace, source: 'user' });
-    if (defaultProject && workspace.has(defaultProject)) {
-      engine.project({ op: 'use', name: defaultProject });
+    sessionEngines.set(ws, engine);
+    if (currentDefaultProject && workspace.has(currentDefaultProject)) {
+      engine.project({ op: 'use', name: currentDefaultProject });
     }
 
     const unsubscribe = workspace.on(event => {
@@ -581,6 +613,7 @@ export function attachWebSocket(
     });
 
     ws.on('message', async raw => {
+      lastFocusedWs = ws;
       let msg: JsonRpcRequest;
       try {
         msg = JSON.parse(raw.toString()) as JsonRpcRequest;
@@ -634,14 +667,97 @@ export function attachWebSocket(
     ws.on('close', () => {
       unsubscribe();
       sockets.delete(ws);
+      sessionEngines.delete(ws);
+      if (lastFocusedWs === ws) {
+        lastFocusedWs = sockets.values().next().value;
+      }
     });
   });
+
+  const activeProject = (): ActiveProjectInfo => {
+    const activeEngine = lastFocusedWs ? sessionEngines.get(lastFocusedWs) : undefined;
+    const name = activeEngine
+      ? activeEngine.projectName
+      : (currentDefaultProject && workspace.has(currentDefaultProject)
+        ? currentDefaultProject
+        : (workspace.has('untitled') ? 'untitled' : workspace.names()[0] ?? 'untitled'));
+    if (workspace.has(name)) {
+      const p = workspace.get(name);
+      return {
+        name: p.name,
+        ...(p.path ? { path: p.path } : {}),
+        rev: p.doc.rev,
+        dirty: p.doc.rev !== p.savedRev,
+      };
+    }
+    return { name, rev: 0, dirty: false };
+  };
+
+  const projectCommand = (args: ProjectCommandArgs): ProjectCommandResult => {
+    let targetEngine = lastFocusedWs ? sessionEngines.get(lastFocusedWs) : undefined;
+    if (!targetEngine) {
+      targetEngine = new Engine({ workspace, source: 'user' });
+      if (currentDefaultProject && workspace.has(currentDefaultProject)) {
+        targetEngine.project({ op: 'use', name: currentDefaultProject });
+      }
+    }
+    const result = targetEngine.project(args);
+    const projName = targetEngine.projectName;
+    currentDefaultProject = projName;
+    const p = workspace.get(projName);
+
+    if (args.op === 'open' || args.op === 'new' || args.op === 'use') {
+      for (const eng of sessionEngines.values()) {
+        if (eng !== targetEngine && workspace.has(projName)) {
+          eng.project({ op: 'use', name: projName });
+        }
+      }
+      for (const client of sockets) {
+        sendJson(client, {
+          jsonrpc: '2.0',
+          method: 'projects',
+          params: { names: workspace.names() },
+        });
+      }
+      if (sockets.size > 0) {
+        const timer = setTimeout(() => {
+          if (!workspace.has(projName)) return;
+          const proj = workspace.get(projName);
+          for (const client of sockets) {
+            sendJson(client, {
+              jsonrpc: '2.0',
+              method: 'changed',
+              params: {
+                project: projName,
+                rev: proj.doc.rev,
+                source: 'user',
+                delta: emptyDelta(),
+                summary: '',
+              },
+            });
+          }
+        }, 60);
+        timer.unref();
+      }
+    }
+
+    return {
+      result,
+      project: p.name,
+      ...(p.path ? { path: p.path } : {}),
+      rev: p.doc.rev,
+    };
+  };
 
   return {
     closeAll() {
       for (const ws of sockets) ws.close();
       sockets.clear();
+      sessionEngines.clear();
+      lastFocusedWs = undefined;
       wss.close();
     },
+    activeProject,
+    projectCommand,
   };
 }

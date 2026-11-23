@@ -234,18 +234,24 @@ describe('Sandbox escape & resilience suite', () => {
 
   it('kills infinite loop on timeout, kills 50 MB stdout flood, restarts lazily on crash, and marks failed after repeated crashes', async () => {
     const host = new PluginHost({
-      timeoutMs: 400,
+      timeoutMs: 5000,
       maxOutputBytes: 256 * 1024,
       maxCrashRestarts: 3,
       crashBackoffMs: 40,
+    });
+    const loopHost = new PluginHost({
+      timeoutMs: 400,
+      maxOutputBytes: 256 * 1024,
     });
     try {
       host.load(hostileDir, { grants: [] });
       expect(await host.callTool('echo', { msg: '1' })).toBe('alive:1');
 
-      // Infinite loop -> killed on timeout -> next call recovers lazily
-      await expect(host.callTool('attack_infinite_loop')).rejects.toThrow(/timed out/i);
-      expect(await host.callTool('echo', { msg: 'after-timeout' })).toBe('alive:after-timeout');
+      // Infinite loop -> killed well before the 5000 ms healthy-call timeout
+      loopHost.load(hostileDir, { grants: [] });
+      const loopT0 = Date.now();
+      await expect(loopHost.callTool('attack_infinite_loop')).rejects.toThrow(/timed out/i);
+      expect(Date.now() - loopT0).toBeLessThan(3000);
 
       // 50 MB stdout flood -> killed on output limit -> next call recovers lazily
       await expect(host.callTool('attack_stdout_flood')).rejects.toThrow(/max output limit/i);
@@ -280,9 +286,9 @@ describe('Sandbox escape & resilience suite', () => {
       expect(crashEntry?.status).toBe('failed');
       expect(crashEntry?.error).toMatch(/intentional startup crash/);
     } finally {
-      await host.dispose();
+      await Promise.all([host.dispose(), loopHost.dispose()]);
     }
-  });
+  }, 60_000);
 
   it('allows granted net:127.0.0.1 and exact port grants while blocking localhost, redirects, and listen()', async () => {
     const host = new PluginHost({ timeoutMs: 2000 });

@@ -1,0 +1,78 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "io.github.samet1771.cadllm",
+  "productName": "CadLLM",
+  "copyright": "Copyright (C) CadLLM Contributors — GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception",
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "files": [
+    "package.json",
+    "dist/main.mjs",
+    "dist/preload.cjs"
+  ],
+  "asar": true,
+  "asarUnpack": [
+    "**/*.node"
+  ],
+  "extraResources": [
+    {
+      "from": "../../parts",
+      "to": "parts"
+    },
+    {
+      "from": "../../registry",
+      "to": "registry",
+      "filter": [
+        "registry.pub",
+        "index.json",
+        "index.sig",
+        "publishers/**",
+        "packages/*.cnlplugin"
+      ]
+    },
+    {
+      "from": "../ui/dist",
+      "to": "ui-dist"
+    },
+    {
+      "from": "dist/plugin-runtime",
+      "to": "plugin-runtime"
+    },
+    {
+      "from": "build/icon.ico",
+      "to": "icon.ico"
+    }
+  ],
+  "fileAssociations": [
+    {
+      "ext": "cnl",
+      "name": "CadLLM Circuit",
+      "description": "CadLLM Circuit Design File",
+      "icon": "icon.ico"
+    }
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "build/icon.ico",
+    "signAndEditExecutable": true,
+    "signExecutable": false
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": true,
+    "allowToChangeInstallationDirectory": true,
+    "differentialPackage": false,
+    "artifactName": "CadLLM-Setup-${version}.${ext}",
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "CadLLM",
+    "license": "build/license.txt"
+  }
+}

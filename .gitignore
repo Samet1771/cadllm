@@ -2,6 +2,7 @@ node_modules/
 dist/
 coverage/
 fab-out/
+packages/desktop/release/
 *.log
 .serena/
 .DS_Store

@@ -79,7 +79,10 @@ function nowStamp(): string {
 }
 
 export function App() {
-  const isDemo = useMemo(() => new URLSearchParams(window.location.search).has('demo'), []);
+  const isDemo = useMemo(
+    () => import.meta.env.VITE_DEMO === '1' || new URLSearchParams(window.location.search).has('demo'),
+    [],
+  );
 
   const [status, setStatus] = useState<ConnectionStatus>(isDemo ? 'demo' : 'connecting');
   const [state, setState] = useState<StateResponse>(EMPTY_STATE);
