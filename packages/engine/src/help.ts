@@ -88,8 +88,8 @@ check: sim run="logic clock=SW1 reset=SW2 cycles=4 out=Q1,Q0"`,
 export function help(topic: string | undefined, lib: Library): string {
   const t = topic?.trim().toLowerCase();
   if (!t) {
-    return `CadLLM: circuits as text (CNL). Tools: project read edit find part check sim layout render export history help.
-Typical: find → part → edit (CNL lines) → sim (dc/logic + expect) → fix → project save.
+    return `CadLLM: circuits as text (CNL). Tools: project read edit find check sim layout render export history help ext.
+Typical: find (q / id) → edit (CNL lines) → sim (dc/logic + expect) → fix → project save.
 Topics: help topic=edit|sim|tests|project|views|examples|parts
 ${TOPICS.examples!.split('\n\n')[0]}`;
   }

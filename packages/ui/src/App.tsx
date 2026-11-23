@@ -7,6 +7,8 @@ import { BottomPanel, type BottomTab } from './components/BottomPanel.tsx';
 import { CanvasView, type PcbFocusTarget } from './components/CanvasView.tsx';
 import { Inspector, type SelectedTrackInfo } from './components/Inspector.tsx';
 import { PartPicker } from './components/PartPicker.tsx';
+import { PluginPanelHost, type ActivePluginPanel } from './components/PluginPanelHost.tsx';
+import { PluginsModal } from './components/PluginsModal.tsx';
 import { ToastContainer } from './components/ToastContainer.tsx';
 import { TopBar } from './components/TopBar.tsx';
 import {
@@ -38,6 +40,7 @@ import {
   rotateSchPlace,
 } from './lib/place.ts';
 import { RpcClient } from './lib/rpc.ts';
+import { listAvailablePanels, parseExtListOutput } from './lib/plugins.ts';
 import {
   buildRunCommand,
   defaultProbesForQuery,
@@ -53,6 +56,10 @@ import type {
   ActivityEntry,
   ChangedNotification,
   ConnectionStatus,
+  ExtToolSummary,
+  PluginPanelPayload,
+  PluginStatusItem,
+  RegistryPluginItem,
   RpcApi,
   StateResponse,
   ThemePreference,
@@ -120,6 +127,16 @@ export function App() {
 
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const [pluginsOpen, setPluginsOpen] = useState(false);
+  const [installedPlugins, setInstalledPlugins] = useState<PluginStatusItem[]>([]);
+  const [indexEntries, setIndexEntries] = useState<RegistryPluginItem[]>([]);
+  const [pluginsLoading, setPluginsLoading] = useState(false);
+  const [indexLoading, setIndexLoading] = useState(false);
+  const [indexError, setIndexError] = useState<string | undefined>(undefined);
+  const [busyPluginId, setBusyPluginId] = useState<string | undefined>(undefined);
+  const [extTools, setExtTools] = useState<ExtToolSummary[]>([]);
+  const [activePanel, setActivePanel] = useState<ActivePluginPanel | null>(null);
 
   const rpcRef = useRef<RpcApi | null>(null);
   const demoSimRef = useRef<(() => void) | null>(null);
@@ -285,6 +302,41 @@ export function App() {
     }
   }, [pushActivity, refreshWorkspace, triggerExternalHighlight]);
 
+  const refreshPlugins = useCallback(async () => {
+    const rpc = rpcRef.current;
+    if (!rpc) return;
+    setPluginsLoading(true);
+    try {
+      const [pluginsRes, extRes, libs] = await Promise.all([
+        rpc.call<PluginStatusItem[]>('plugins.list', {}),
+        rpc.call<string>('ext', { op: 'list' }).catch(() => ''),
+        rpc.library().catch(() => null),
+      ]);
+      setInstalledPlugins(Array.isArray(pluginsRes) ? pluginsRes : []);
+      setExtTools(parseExtListOutput(extRes));
+      if (libs) setLibraryParts(libs);
+    } catch {
+      // Older servers or disconnected state may not support plugins.* yet
+    } finally {
+      setPluginsLoading(false);
+    }
+  }, []);
+
+  const refreshIndex = useCallback(async () => {
+    const rpc = rpcRef.current;
+    if (!rpc) return;
+    setIndexLoading(true);
+    setIndexError(undefined);
+    try {
+      const entries = await rpc.call<RegistryPluginItem[]>('plugins.index', {});
+      setIndexEntries(Array.isArray(entries) ? entries : []);
+    } catch (err) {
+      setIndexError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIndexLoading(false);
+    }
+  }, []);
+
   // Initialize connection (live WebSocket or ?demo).
   useEffect(() => {
     let disposed = false;
@@ -299,7 +351,7 @@ export function App() {
         const libs = await demo.library();
         if (disposed) return;
         setLibraryParts(libs);
-        await refreshWorkspace(true);
+        await Promise.all([refreshWorkspace(true), refreshPlugins()]);
       });
       return () => {
         disposed = true;
@@ -320,6 +372,10 @@ export function App() {
     const unsubProjects = client.onNotification('projects', () => {
       void client.state().then(setState).catch(() => undefined);
     });
+    const unsubPlugins = client.onNotification('plugins', () => {
+      void refreshPlugins();
+      void refreshWorkspace(false);
+    });
 
     const bootstrap = async () => {
       try {
@@ -328,7 +384,7 @@ export function App() {
         const libs = await client.library();
         if (disposed) return;
         setLibraryParts(libs);
-        await refreshWorkspace(true);
+        await Promise.all([refreshWorkspace(true), refreshPlugins()]);
       } catch (err) {
         if (!disposed) {
           pushActivity(`Connection failed: ${err instanceof Error ? err.message : String(err)}`, 'ui', undefined, 'error');
@@ -341,9 +397,10 @@ export function App() {
       disposed = true;
       unsubChanged();
       unsubProjects();
+      unsubPlugins();
       client.close();
     };
-  }, [handleChanged, isDemo, pushActivity, refreshWorkspace]);
+  }, [handleChanged, isDemo, pushActivity, refreshPlugins, refreshWorkspace]);
 
   // Search parts via `find` RPC whenever search query or connection settles.
   useEffect(() => {
@@ -667,9 +724,200 @@ export function App() {
     }
   }, [pushActivity, pushToast, refreshWorkspace]);
 
+  const availablePanels = useMemo(() => listAvailablePanels(installedPlugins), [installedPlugins]);
+
+  const handleInstallPlugin = useCallback(
+    async (id: string, range: string | undefined, grantedPermissions: string[]) => {
+      const rpc = rpcRef.current;
+      if (!rpc) return;
+      setBusyPluginId(id);
+      try {
+        await rpc.call('plugins.install', { id, ...(range ? { range } : {}) });
+        if (grantedPermissions.length > 0) {
+          await rpc.call('plugins.grant', { id, permissions: grantedPermissions });
+        }
+        await Promise.all([refreshPlugins(), refreshWorkspace(false)]);
+        pushToast(`Installed plugin ${id}`, 'ui');
+        pushActivity(`Installed plugin ${id}`, 'ui', undefined, 'info');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        pushToast(msg, 'ui');
+        pushActivity(msg, 'ui', undefined, 'error');
+      } finally {
+        setBusyPluginId(undefined);
+      }
+    },
+    [pushActivity, pushToast, refreshPlugins, refreshWorkspace],
+  );
+
+  const handleGrantPlugin = useCallback(
+    async (id: string, permissions: string[]) => {
+      const rpc = rpcRef.current;
+      if (!rpc) return;
+      setBusyPluginId(id);
+      try {
+        await rpc.call('plugins.grant', { id, permissions });
+        await Promise.all([refreshPlugins(), refreshWorkspace(false)]);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        pushToast(msg, 'ui');
+        pushActivity(msg, 'ui', undefined, 'error');
+      } finally {
+        setBusyPluginId(undefined);
+      }
+    },
+    [pushActivity, pushToast, refreshPlugins, refreshWorkspace],
+  );
+
+  const handleRevokePlugin = useCallback(
+    async (id: string, permissions: string[]) => {
+      const rpc = rpcRef.current;
+      if (!rpc) return;
+      setBusyPluginId(id);
+      try {
+        await rpc.call('plugins.revoke', { id, permissions });
+        await Promise.all([refreshPlugins(), refreshWorkspace(false)]);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        pushToast(msg, 'ui');
+        pushActivity(msg, 'ui', undefined, 'error');
+      } finally {
+        setBusyPluginId(undefined);
+      }
+    },
+    [pushActivity, pushToast, refreshPlugins, refreshWorkspace],
+  );
+
+  const handleRemovePlugin = useCallback(
+    async (id: string) => {
+      const rpc = rpcRef.current;
+      if (!rpc) return;
+      setBusyPluginId(id);
+      try {
+        await rpc.call('plugins.remove', { id });
+        if (activePanel?.pluginId === id) setActivePanel(null);
+        await Promise.all([refreshPlugins(), refreshWorkspace(false)]);
+        pushToast(`Removed plugin ${id}`, 'ui');
+        pushActivity(`Removed plugin ${id}`, 'ui', undefined, 'info');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        pushToast(msg, 'ui');
+        pushActivity(msg, 'ui', undefined, 'error');
+      } finally {
+        setBusyPluginId(undefined);
+      }
+    },
+    [activePanel?.pluginId, pushActivity, pushToast, refreshPlugins, refreshWorkspace],
+  );
+
+  const handleOpenPanel = useCallback(
+    async (pluginId: string, panelId: string, _title: string) => {
+      const rpc = rpcRef.current;
+      if (!rpc) return;
+      try {
+        const payload = await rpc.call<PluginPanelPayload>('plugins.panel', { id: pluginId, panel: panelId });
+        const meta = installedPlugins.find(p => p.id === pluginId);
+        setActivePanel({
+          pluginId,
+          pluginName: meta?.name ?? pluginId,
+          panelId: payload.panel,
+          title: payload.title,
+          html: payload.html,
+        });
+        setPluginsOpen(false);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        pushToast(msg, 'ui');
+        pushActivity(msg, 'ui', undefined, 'error');
+      }
+    },
+    [installedPlugins, pushActivity, pushToast],
+  );
+
+  const handlePanelReadProject = useCallback(async (opts: { detail?: 0 | 1 | 2; select?: string }) => {
+    const rpc = rpcRef.current;
+    if (!rpc) throw new Error('Not connected');
+    return rpc.call<string>('read', opts);
+  }, []);
+
+  const handleApplyPluginEdit = useCallback(
+    async (pluginId: string, cnl: string) => {
+      const rpc = rpcRef.current;
+      if (!rpc) throw new Error('Not connected');
+      ownTrackerRef.current.beginMutation();
+      try {
+        const res = await rpc.call<string>('plugins.panelEdit', { id: pluginId, cnl });
+        const rev = parseRevFromText(res);
+        const buffered = ownTrackerRef.current.endMutation(rev);
+        if (buffered.length > 0) triggerExternalHighlight(buffered);
+        await refreshWorkspace(false);
+        return res;
+      } catch (err) {
+        ownTrackerRef.current.endMutation(undefined);
+        throw err;
+      }
+    },
+    [refreshWorkspace, triggerExternalHighlight],
+  );
+
+  const handleShowConsoleHelp = useCallback(async () => {
+    const rpc = rpcRef.current;
+    if (!rpc) return;
+    setIsPlaying(false);
+    try {
+      const [simHelp, extList] = await Promise.all([
+        rpc.call<string>('help', { topic: 'sim' }).catch(() => 'Sim commands: dc · tran · ac · run · logic · test'),
+        rpc.call<string>('ext', { op: 'list' }).catch(() => 'no plugin tools installed'),
+      ]);
+      setExtTools(parseExtListOutput(extList));
+      setSimOutput([simHelp, '', 'Plugin tools (ext):', extList || 'no plugin tools installed'].join('\n'));
+    } catch (err) {
+      setSimOutput(`error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, []);
+
   const handleRunSim = useCallback(async (run: string) => {
     const rpc = rpcRef.current;
     if (!rpc) return;
+    const trimmed = run.trim();
+    if (/^help(?:\s|$)/i.test(trimmed)) {
+      const topic = trimmed.slice(4).trim();
+      setSimRunning(true);
+      setIsPlaying(false);
+      try {
+        const [helpRes, extRes] = await Promise.all([
+          rpc.call<string>('help', topic ? { topic } : {}),
+          rpc.call<string>('ext', { op: 'list' }).catch(() => 'no plugin tools installed'),
+        ]);
+        setSimOutput([helpRes, '', 'Plugin tools (ext):', extRes || 'no plugin tools installed'].join('\n'));
+      } catch (err) {
+        setSimOutput(`error: ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        setSimRunning(false);
+      }
+      return;
+    }
+    if (/^ext(?:\s|$)/i.test(trimmed)) {
+      setSimRunning(true);
+      setIsPlaying(false);
+      try {
+        const rest = trimmed.slice(3).trim();
+        if (!rest || rest === 'list' || rest === 'op=list') {
+          const extRes = await rpc.call<string>('ext', { op: 'list' });
+          setExtTools(parseExtListOutput(extRes));
+          setSimOutput(extRes);
+        } else {
+          const name = rest.replace(/^call\s+/i, '').split(/\s+/)[0]!;
+          const extRes = await rpc.call<string>('ext', { op: 'call', name, args: {} });
+          setSimOutput(extRes);
+        }
+      } catch (err) {
+        setSimOutput(`error: ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        setSimRunning(false);
+      }
+      return;
+    }
     setSimRunning(true);
     try {
       const res = await rpc.call<string>('sim', { run });
@@ -771,6 +1019,11 @@ export function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [activeView, handleDelete, handleDeleteSelectedTrack, handleFlipPcb, handleRedo, handleRotate, handleUndo, selectedRef, selectedTrack]);
 
+  const activePanelPlugin = useMemo(
+    () => (activePanel ? installedPlugins.find(p => p.id === activePanel.pluginId) : undefined),
+    [activePanel, installedPlugins],
+  );
+
   return (
     <div className="app-shell">
       <TopBar
@@ -780,6 +1033,13 @@ export function App() {
         status={status}
         themePref={themePref}
         isDemo={isDemo}
+        pluginCount={installedPlugins.length}
+        availablePanels={availablePanels}
+        onOpenPlugins={() => {
+          setPluginsOpen(true);
+          void refreshPlugins();
+        }}
+        onOpenPanel={(pluginId, panelId, title) => void handleOpenPanel(pluginId, panelId, title)}
         onThemePrefChange={setThemePref}
         onSelectProject={name => void handleProjectCmd({ op: 'use', name })}
         onNewProject={name => void handleProjectCmd({ op: 'new', ...(name ? { name } : {}) })}
@@ -796,7 +1056,7 @@ export function App() {
         onSimulateAiEdit={demoSimRef.current ?? undefined}
       />
 
-      <div className="workspace-grid">
+      <div className={`workspace-grid ${activePanel ? 'has-plugin-panel' : ''}`}>
         <PartPicker
           query={partQuery}
           hits={partHits}
@@ -871,6 +1131,17 @@ export function App() {
           onDeleteSelectedTrack={handleDeleteSelectedTrack}
           onDisconnectPin={handleDisconnectPin}
         />
+
+        {activePanel && (
+          <PluginPanelHost
+            panel={activePanel}
+            grantedPermissions={activePanelPlugin?.grantedPermissions ?? []}
+            onReadProject={handlePanelReadProject}
+            onApplyPluginEdit={handleApplyPluginEdit}
+            onReload={() => void handleOpenPanel(activePanel.pluginId, activePanel.panelId, activePanel.title)}
+            onClose={() => setActivePanel(null)}
+          />
+        )}
       </div>
 
       <BottomPanel
@@ -882,6 +1153,7 @@ export function App() {
         onFocusDrcIssue={handleFocusDrcIssue}
         simOutput={simOutput}
         simRunning={simRunning}
+        extTools={extTools}
         activity={activity}
         hasMcu={mcuRefs.length > 0}
         buttonRefs={buttonRefs}
@@ -902,6 +1174,7 @@ export function App() {
         onRunTransient={handleRunTransient}
         onRunSim={cmd => void handleRunSim(cmd)}
         onRunCheck={() => void handleRunCheck()}
+        onShowConsoleHelp={() => void handleShowConsoleHelp()}
         onPlayToggle={() => {
           if (!simTrace) return;
           if (!isPlaying && playTime >= simTrace.duration) setPlayTime(0);
@@ -913,6 +1186,24 @@ export function App() {
         onSpeedChange={setPlaySpeed}
         onPressModeChange={setPressMode}
         onManualPress={handleManualPress}
+      />
+
+      <PluginsModal
+        open={pluginsOpen}
+        installed={installedPlugins}
+        indexEntries={indexEntries}
+        loadingInstalled={pluginsLoading}
+        loadingIndex={indexLoading}
+        indexError={indexError}
+        busyPluginId={busyPluginId}
+        onClose={() => setPluginsOpen(false)}
+        onRefreshInstalled={() => void refreshPlugins()}
+        onRefreshIndex={() => void refreshIndex()}
+        onInstall={handleInstallPlugin}
+        onGrant={handleGrantPlugin}
+        onRevoke={handleRevokePlugin}
+        onRemove={handleRemovePlugin}
+        onOpenPanel={(pluginId, panelId, title) => void handleOpenPanel(pluginId, panelId, title)}
       />
 
       <ToastContainer

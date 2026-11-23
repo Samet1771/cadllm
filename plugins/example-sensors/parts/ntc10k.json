@@ -1,0 +1,24 @@
+{
+  "id": "ntc10k",
+  "name": "NTC 10k Thermistor",
+  "summary": "10k at 25C NTC thermistor (B25/85 = 3950 K)",
+  "category": "sensor",
+  "refPrefix": "R",
+  "pins": [
+    { "id": "1", "name": "1", "type": "passive" },
+    { "id": "2", "name": "2", "type": "passive" }
+  ],
+  "props": {
+    "temp": {
+      "type": "number",
+      "unit": "C",
+      "default": "25",
+      "description": "Ambient temperature in degrees Celsius"
+    }
+  },
+  "valueProp": "temp",
+  "sim": [{ "kind": "spice", "ref": "NTC10K" }],
+  "footprints": ["THT-axial"],
+  "views": { "sch": "resistor", "bb": "axial" },
+  "keywords": ["ntc", "thermistor", "temperature", "sensor", "10k", "3950"]
+}

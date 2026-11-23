@@ -2,7 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import type { DrcIssue } from '@cadllm/pcb';
 import type { ParsedSimTrace } from '../lib/sim.ts';
-import type { ActivityEntry } from '../lib/types.ts';
+import type { ActivityEntry, ExtToolSummary } from '../lib/types.ts';
 
 export type BottomTab = 'console' | 'drc' | 'serial' | 'activity';
 
@@ -15,6 +15,7 @@ interface BottomPanelProps {
   onFocusDrcIssue?: (issue: DrcIssue) => void;
   simOutput: string;
   simRunning: boolean;
+  extTools?: ExtToolSummary[];
   activity: ActivityEntry[];
   hasMcu: boolean;
   buttonRefs: string[];
@@ -35,6 +36,7 @@ interface BottomPanelProps {
   onRunTransient: () => void;
   onRunSim: (run: string) => void;
   onRunCheck: () => void;
+  onShowConsoleHelp?: () => void;
   onPlayToggle: () => void;
   onStopPlayback: () => void;
   onSeek: (t: number) => void;
@@ -53,6 +55,7 @@ export function BottomPanel({
   onFocusDrcIssue,
   simOutput,
   simRunning,
+  extTools = [],
   activity,
   hasMcu,
   buttonRefs,
@@ -73,6 +76,7 @@ export function BottomPanel({
   onRunTransient,
   onRunSim,
   onRunCheck,
+  onShowConsoleHelp,
   onPlayToggle,
   onStopPlayback,
   onSeek,
@@ -237,7 +241,7 @@ export function BottomPanel({
                 className="input input-sm sim-input"
                 value={simInput}
                 onChange={e => setSimInput(e.target.value)}
-                placeholder='sim command: dc · logic in=SW1 out=Y · test'
+                placeholder='sim command: dc · logic in=SW1 out=Y · test · ext list'
                 aria-label="Simulation command"
               />
               <button type="submit" className="btn btn-sm" disabled={simRunning}>
@@ -252,6 +256,11 @@ export function BottomPanel({
               <button type="button" className="btn btn-sm" onClick={onRunCheck}>
                 Check
               </button>
+              {onShowConsoleHelp && (
+                <button type="button" className="btn btn-sm" onClick={onShowConsoleHelp} title="Show simulation and ext plugin tool help">
+                  Help
+                </button>
+              )}
             </form>
           </div>
         )}
@@ -307,7 +316,15 @@ export function BottomPanel({
           </div>
           <div className="console-col">
             <div className="console-col-title">Simulation</div>
-            <pre className="console-pre">{simOutput || 'Use Run Sim (or dc / logic / test) to simulate.'}</pre>
+            <pre className="console-pre">
+              {simOutput ||
+                [
+                  'Use Run Sim (or dc / logic / test / help) to simulate.',
+                  extTools.length > 0
+                    ? `Plugin tools (ext): ${extTools.map(t => `${t.name} (${t.pluginId}@${t.version})`).join(' · ')}`
+                    : 'Plugin tools (ext): none installed.',
+                ].join('\n')}
+            </pre>
           </div>
         </div>
       ) : tab === 'drc' ? (

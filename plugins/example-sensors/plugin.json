@@ -1,0 +1,47 @@
+{
+  "id": "org.cadllm.example-sensors",
+  "name": "Example Sensor Pack",
+  "version": "1.0.0",
+  "summary": "LDR photoresistor, NTC 10k thermistor, voltage divider solver, LED resistor check, and sensor calculator panel",
+  "publisher": "cadllm-examples",
+  "engine": "^1.0.0",
+  "license": "MIT",
+  "main": "src/index.ts",
+  "permissions": ["project:read"],
+  "contributes": {
+    "parts": "parts",
+    "models": [
+      { "id": "LDR", "kind": "spice", "file": "models/ldr.cir" },
+      { "id": "NTC10K", "kind": "spice", "file": "models/ntc10k.cir" }
+    ],
+    "tools": [
+      {
+        "name": "calc_divider",
+        "summary": "solve standard E12/E24 resistor divider for Vin/Vout (optional total ohms)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "vin": { "type": "number", "description": "Input voltage (V)" },
+            "vout": { "type": "number", "description": "Target output voltage (V)" },
+            "series": { "type": "string", "enum": ["E12", "E24"], "description": "Standard resistor series (default E24)" },
+            "total": { "type": "number", "description": "Optional target total resistance R1+R2 (ohms)" }
+          },
+          "required": ["vin", "vout"]
+        }
+      }
+    ],
+    "checks": [
+      {
+        "id": "led_no_resistor",
+        "summary": "warn when an LED connects directly across a power source without a series resistor"
+      }
+    ],
+    "panels": [
+      {
+        "id": "sensors",
+        "title": "Sensor calculator",
+        "main": "panel/index.html"
+      }
+    ]
+  }
+}

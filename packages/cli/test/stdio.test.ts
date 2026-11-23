@@ -12,7 +12,7 @@ describe('cadllm mcp over stdio', () => {
     await client.connect(new StdioClientTransport({ command: process.execPath, args: [main, 'mcp', '--standalone'], stderr: 'pipe' }));
     try {
       const { tools } = await client.listTools();
-      expect(tools.map(t => t.name).sort()).toEqual(['check', 'edit', 'export', 'find', 'help', 'history', 'layout', 'part', 'project', 'read', 'render', 'sim']);
+      expect(tools.map(t => t.name).sort()).toEqual(['check', 'edit', 'export', 'ext', 'find', 'help', 'history', 'layout', 'project', 'read', 'render', 'sim']);
       const text = async (name: string, args: Record<string, unknown>) =>
         ((await client.callTool({ name, arguments: args })).content as { text: string }[])[0]!.text;
       expect(await text('edit', { cnl: 'BAT1 battery 5; R1 res 330; D1 led; VCC: BAT1.+ R1.1; LA: R1.2 D1.A; GND: D1.K BAT1.-' })).toMatch(/^ok rev=1 /);

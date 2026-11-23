@@ -1,0 +1,30 @@
+{
+  "id": "org.test.good",
+  "name": "Good Test Plugin",
+  "version": "1.2.3",
+  "summary": "Good plugin fixture with parts, SPICE model, tools, checks, and panel",
+  "publisher": "test",
+  "engine": "^1.0.0",
+  "license": "MIT",
+  "main": "src/index.ts",
+  "permissions": ["project:read", "project:write", "net:127.0.0.1"],
+  "contributes": {
+    "parts": "parts",
+    "models": [
+      { "id": "GOOD_THERM", "kind": "spice", "file": "models/therm.cir" },
+      { "id": "GOOD_INLINE", "kind": "spice", "spice": ".subckt GOOD_INLINE 1 2\nR1 1 2 5k\n.ends GOOD_INLINE" }
+    ],
+    "tools": [
+      { "name": "summarize_circuit", "summary": "summarize active project" },
+      { "name": "add_test_res", "summary": "add R99 4k7 resistor to project" },
+      { "name": "ping_local", "summary": "fetch local HTTP url" },
+      { "name": "lookup_part", "summary": "look up a part via capability RPC" }
+    ],
+    "checks": [
+      { "id": "no_bare_led", "summary": "warn when an LED has no resistor" }
+    ],
+    "panels": [
+      { "id": "good_panel", "title": "Good Panel", "main": "panel/index.html" }
+    ]
+  }
+}

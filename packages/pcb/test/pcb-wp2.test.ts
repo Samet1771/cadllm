@@ -531,7 +531,7 @@ describe('WP2 autorouter', () => {
     expect(rBlocked.unrouted).toEqual(['N1']);
   });
 
-  it('integrates cleanly with Engine edit issueTail, layout op=route, check, and undo', () => {
+  it('integrates cleanly with Engine edit issueTail, layout op=route, check, and undo', async () => {
     const e = new Engine({ library: lib, root: repoRoot });
     e.project({ op: 'open', path: 'examples/nand-led.cnl' });
     const tail = e.edit({ cnl: '~BAT1 footprint=WireLeads\nboard 40x30' });
@@ -540,12 +540,12 @@ describe('WP2 autorouter', () => {
 
     e.layout({ view: 'pcb' });
     expect(e.layout({ view: 'pcb', op: 'route' })).toMatch(/^ok rev=\d+ routed \d+ tracks, \d+ vias/);
-    const checked = e.check();
+    const checked = await e.check();
     expect(checked).toMatch(/^nand-led rev=\d+ 0 err /);
     expect(checked).not.toContain('unrouted');
 
     // Undo routing restores unrouted warnings
     e.history({ op: 'undo' });
-    expect(e.check()).toContain('unrouted');
+    expect(await e.check()).toContain('unrouted');
   });
 });

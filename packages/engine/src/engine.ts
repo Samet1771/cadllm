@@ -6,6 +6,7 @@ import { applyEdit, codeMetaKey, loadCircuit, printCircuit, printDelta, saveCnl,
 import { bom, excellon, fabZip, gerbers, kicadPcb, pickAndPlace } from '@cadllm/export';
 import type { Library } from '@cadllm/library';
 import { isPcbPart, route as routePcb } from '@cadllm/pcb';
+import type { PluginHost, PluginRpcContext } from '@cadllm/plugins';
 import { view, viewChecks, type RenderOptions } from '@cadllm/views';
 import { help } from './help.ts';
 import { parseTests, runAdhoc, runFileTests } from './sim.ts';
@@ -15,6 +16,8 @@ export interface EngineOptions {
   /** Shared projects. Omit for a private workspace over `library`. */
   workspace?: Workspace;
   library?: Library;
+  /** Optional plugin host providing contributed parts, SPICE models, tools, and checks. */
+  plugins?: PluginHost;
   /** Base directory for relative paths of a private workspace. Defaults to process.cwd(). */
   root?: string;
   /** Attribution for edits made through this session. */
@@ -35,12 +38,43 @@ export class Engine {
 
   constructor(opts: EngineOptions) {
     if (!opts.workspace && !opts.library) throw new Error('Engine needs a workspace or a library');
-    this.workspace = opts.workspace ?? new Workspace({ library: opts.library!, ...(opts.root ? { root: opts.root } : {}) });
+    this.workspace = opts.workspace ?? new Workspace({
+      library: opts.library!,
+      ...(opts.plugins ? { plugins: opts.plugins } : {}),
+      ...(opts.root ? { root: opts.root } : {}),
+    });
+    if (opts.workspace && opts.plugins && !opts.workspace.plugins) {
+      opts.workspace.setPlugins(opts.plugins);
+    }
     this.source = opts.source ?? 'ai';
+    if (this.workspace.plugins) {
+      this.workspace.plugins.setContext(this.pluginRpcContext());
+    }
   }
 
   get library(): Library {
     return this.workspace.library;
+  }
+
+  get plugins(): PluginHost | undefined {
+    return this.workspace.plugins;
+  }
+
+  private pluginRpcContext(): PluginRpcContext {
+    return {
+      readProject: opts => this.read(opts),
+      editProject: (cnl, opts) =>
+        this.edit(
+          {
+            cnl,
+            ...(opts?.dry_run ? { dry_run: true } : {}),
+            ...(opts?.if_rev !== undefined ? { if_rev: opts.if_rev } : {}),
+          },
+          'plugin',
+        ),
+      getPart: id => this.library.get(id) ?? this.library.get(id.toLowerCase()),
+      searchParts: (q, limit) => this.library.search(q, limit),
+    };
   }
 
   get root(): string {
@@ -200,7 +234,7 @@ export class Engine {
 
   // ---- edit ----
 
-  edit(args: { cnl?: string; tests?: string; code?: { ref: string; text: string }; dry_run?: boolean; if_rev?: number }): string {
+  edit(args: { cnl?: string; tests?: string; code?: { ref: string; text: string }; dry_run?: boolean; if_rev?: number }, sourceOverride?: ChangeSource): string {
     if (args.cnl === undefined && args.tests === undefined && args.code === undefined) {
       throw new CadError('invalid', 'edit needs cnl, tests or code');
     }
@@ -222,7 +256,7 @@ export class Engine {
           if (prev !== normalized) tx.notes.push(`code ${comp.ref}`);
         }
       }
-    }, { source: this.source, ...(args.dry_run ? { dryRun: true } : {}), ...(args.if_rev !== undefined ? { ifRev: args.if_rev } : {}) });
+    }, { source: sourceOverride ?? this.source, ...(args.dry_run ? { dryRun: true } : {}), ...(args.if_rev !== undefined ? { ifRev: args.if_rev } : {}) });
     const line = printDelta(info, p.doc.read);
     const dry = args.dry_run ? `dry ${line.replace(/rev=\d+/, `rev=${p.doc.rev} unchanged`)}` : line;
     return `${dry}${args.dry_run ? '' : this.issueTail(p, info.delta)}`;
@@ -242,12 +276,25 @@ export class Engine {
 
   // ---- library ----
 
-  find(args: { q: string; limit?: number }): string {
+  find(args: { q?: string; id?: string; limit?: number } = {}): string {
+    if (args.id !== undefined) {
+      const ids = args.id.split(/[\s,]+/).filter(Boolean);
+      if (!ids.length) throw new CadError('invalid', 'find needs q or id');
+      return ids.map(id => {
+        const p = this.library.get(id) ?? this.library.get(id.toLowerCase());
+        if (!p) {
+          const near = this.library.search(id, 3).map(x => x.id);
+          throw new CadError('unknown_part', `unknown part ${id}`, near.length ? `did you mean ${near.join(' ')}?` : 'search with find');
+        }
+        return describePart(p);
+      }).join('\n\n');
+    }
+    const q = args.q ?? '';
     const limit = Math.min(Math.max(args.limit ?? 8, 1), 50);
-    const hits = this.library.search(args.q, limit + 1);
+    const hits = this.library.search(q, limit + 1);
     if (!hits.length) {
       const cats = [...new Set(this.library.all().map(p => p.category))].sort().join(' ');
-      return `no parts match "${args.q}" · categories: ${cats}`;
+      return `no parts match "${q}" · categories: ${cats}`;
     }
     const lines = hits.slice(0, limit).map(p => this.library.summaryLine(p));
     if (hits.length > limit) lines.push(`… more (limit=${limit * 2})`);
@@ -255,14 +302,7 @@ export class Engine {
   }
 
   part(args: { id: string }): string {
-    return args.id.split(/[\s,]+/).filter(Boolean).map(id => {
-      const p = this.library.get(id) ?? this.library.get(id.toLowerCase());
-      if (!p) {
-        const near = this.library.search(id, 3).map(x => x.id);
-        throw new CadError('unknown_part', `unknown part ${id}`, near.length ? `did you mean ${near.join(' ')}?` : 'search with find');
-      }
-      return describePart(p);
-    }).join('\n\n');
+    return this.find({ id: args.id });
   }
 
   // ---- views ----
@@ -433,14 +473,38 @@ export class Engine {
     return `${out}\nok ${args.format} ${out} · ${summary}`;
   }
 
-  // ---- check / sim ----
+  // ---- check / sim / ext ----
 
-  check(): string {
+  async check(): Promise<string> {
     const p = this.current;
-    const issues = allIssues(p);
+    const pluginIssues = this.plugins ? await this.plugins.runChecks(p.doc.read, this.pluginRpcContext()) : [];
+    const issues = [
+      ...allIssues(p),
+      ...pluginIssues.map(i => ({
+        level: i.level,
+        message: i.message.includes(i.pluginId) ? i.message : `[${i.pluginId}] ${i.message}`,
+      })),
+    ];
     const errs = issues.filter(i => i.level === 'error');
     const head = `${this.tag(p)} ${errs.length} err ${issues.length - errs.length} warn`;
     return [head, ...issues.map(formatIssue)].join('\n');
+  }
+
+  async ext(args: { op: 'list' | 'call' | string; name?: string; args?: Record<string, unknown> }): Promise<string> {
+    switch (args.op) {
+      case 'list': {
+        const tools = [...(this.plugins?.tools() ?? [])].sort((a, b) => naturalCompare(a.name, b.name));
+        if (!tools.length) return 'no plugin tools installed';
+        return tools.map(t => `${t.name}  ${t.summary}  (${t.pluginId}@${t.version})`).join('\n');
+      }
+      case 'call': {
+        if (!args.name) throw new CadError('invalid', 'ext call needs name', 'list tools with ext op=list');
+        if (!this.plugins) throw new CadError('invalid', `unknown plugin tool ${args.name}`, 'list tools with ext op=list');
+        return this.plugins.callTool(args.name, args.args ?? {}, this.pluginRpcContext());
+      }
+      default:
+        throw new CadError('invalid', `unknown ext op ${args.op}`, 'list call');
+    }
   }
 
   async sim(args: { run: string }): Promise<string> {

@@ -1,0 +1,13 @@
+{
+  "id": "org.test.zzz",
+  "name": "Tool Collider Plugin",
+  "version": "0.1.0",
+  "engine": "^1.0.0",
+  "license": "MIT",
+  "main": "src/index.ts",
+  "contributes": {
+    "tools": [
+      { "name": "summarize_circuit", "summary": "colliding tool name" }
+    ]
+  }
+}

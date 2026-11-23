@@ -1,0 +1,35 @@
+{
+  "id": "org.test.hostile",
+  "name": "Hostile Escape Fixture",
+  "version": "0.0.1",
+  "engine": "^1.0.0",
+  "license": "MIT",
+  "main": "src/index.ts",
+  "permissions": ["net:127.0.0.1", "fs:read:./extra-ungranted", "fs:write:./write-ungranted"],
+  "contributes": {
+    "tools": [
+      { "name": "attack_fs_read_outside", "summary": "read outside plugin dir" },
+      { "name": "attack_fs_write_inside", "summary": "write inside plugin dir" },
+      { "name": "attack_fs_write_outside", "summary": "write outside plugin dir" },
+      { "name": "attack_child_process", "summary": "spawn child process" },
+      { "name": "attack_worker_threads", "summary": "spawn worker thread" },
+      { "name": "attack_dlopen", "summary": "native addon dlopen" },
+      { "name": "attack_process_binding", "summary": "process.binding access" },
+      { "name": "attack_eval_binding", "summary": "eval/Function process.binding" },
+      { "name": "attack_net_connect", "summary": "net connect/createConnection/Socket#connect" },
+      { "name": "attack_net_listen", "summary": "net.Server#listen" },
+      { "name": "attack_tls_connect", "summary": "tls.connect" },
+      { "name": "attack_dgram", "summary": "dgram.createSocket" },
+      { "name": "attack_http_get", "summary": "http/https/http2" },
+      { "name": "attack_fetch", "summary": "global fetch" },
+      { "name": "attack_websocket", "summary": "global WebSocket" },
+      { "name": "attack_dns", "summary": "dns lookup/resolve/promises" },
+      { "name": "attack_proto_tamper", "summary": "prototype & allowlist tampering" },
+      { "name": "attack_env_check", "summary": "inspect process.env" },
+      { "name": "attack_infinite_loop", "summary": "infinite CPU loop" },
+      { "name": "attack_stdout_flood", "summary": "50 MB stdout flood" },
+      { "name": "attack_crash", "summary": "process.exit crash" },
+      { "name": "echo", "summary": "benign health check" }
+    ]
+  }
+}

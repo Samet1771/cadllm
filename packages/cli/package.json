@@ -16,6 +16,9 @@
     "@cadllm/engine": "*",
     "@cadllm/library": "*",
     "@cadllm/mcp": "*",
+    "@cadllm/plugin-api": "*",
+    "@cadllm/plugins": "*",
+    "@cadllm/registry": "*",
     "@cadllm/server": "*",
     "@modelcontextprotocol/sdk": "^1.32.2"
   }

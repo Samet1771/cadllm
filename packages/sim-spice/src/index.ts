@@ -64,15 +64,20 @@ function mapVectors(raw: SpiceResult, built: BuiltSpiceCircuit): SpiceResult {
   return { vectors, scale: raw.scale, log: raw.log };
 }
 
-async function runCircuitAnalysis(q: Query, analysis: SpiceAnalysis, probes?: string[]): Promise<SpiceResult> {
-  const built = buildSpiceCircuit(q, { analysis, probes });
+async function runCircuitAnalysis(
+  q: Query,
+  analysis: SpiceAnalysis,
+  probes?: string[],
+  models?: ReadonlyMap<string, string> | Record<string, string>,
+): Promise<SpiceResult> {
+  const built = buildSpiceCircuit(q, { analysis, ...(probes ? { probes } : {}), ...(models ? { models } : {}) });
   const raw = await runSpice(built.netlist, analysis);
   return mapVectors(raw, built);
 }
 
 /** Run DC operating-point analysis via ngspice. */
 export function op(q: Query, opts: OpSpiceOptions = {}): Promise<SpiceResult> {
-  return runCircuitAnalysis(q, { kind: 'op' }, opts.probes);
+  return runCircuitAnalysis(q, { kind: 'op' }, opts.probes, opts.models);
 }
 
 /** Run transient analysis via ngspice. */
@@ -83,7 +88,7 @@ export function tran(q: Query, opts: TranOptions): Promise<SpiceResult> {
     ...(opts.step !== undefined ? { step: opts.step } : {}),
     ...(opts.uic !== undefined ? { uic: opts.uic } : {}),
   };
-  return runCircuitAnalysis(q, analysis, opts.probes);
+  return runCircuitAnalysis(q, analysis, opts.probes, opts.models);
 }
 
 /** Run AC small-signal frequency sweep analysis via ngspice. */
@@ -95,5 +100,5 @@ export function ac(q: Query, opts: AcOptions): Promise<SpiceResult> {
     start: opts.start,
     stop: opts.stop,
   };
-  return runCircuitAnalysis(q, analysis, opts.probes);
+  return runCircuitAnalysis(q, analysis, opts.probes, opts.models);
 }

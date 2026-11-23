@@ -1,0 +1,12 @@
+{
+  "id": "data_sensor",
+  "name": "Data Sensor",
+  "summary": "data-only sensor part",
+  "category": "sensor",
+  "refPrefix": "R",
+  "pins": [
+    { "id": "1", "name": "1", "type": "passive" },
+    { "id": "2", "name": "2", "type": "passive" }
+  ],
+  "sim": [{ "kind": "spice", "ref": "DATA_M" }]
+}

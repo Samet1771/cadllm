@@ -1,0 +1,8 @@
+* CdS Photoresistor (LDR) Behavioral SPICE Subcircuit
+* Resistance law: R(E) = R10 * (E / 10 lux)^(-gamma), with R10 = 10 kohm, gamma = 0.7
+* Source: GL5528 CdS Photoconductive Cell datasheet (Token Electronics / Silonex);
+*         log-log power-law model also described in ngspice behavioral modeling &
+*         Horowitz & Hill, The Art of Electronics, 3rd ed.
+.subckt LDR 1 2 lux=100
+R1 1 2 {10000 * pwr(max(lux, 0.1) / 10, -0.7)}
+.ends LDR

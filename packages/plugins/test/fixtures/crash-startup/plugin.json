@@ -1,0 +1,13 @@
+{
+  "id": "org.test.crash",
+  "name": "Startup Crash Plugin",
+  "version": "0.1.0",
+  "engine": "^1.0.0",
+  "license": "MIT",
+  "main": "src/index.ts",
+  "contributes": {
+    "tools": [
+      { "name": "ping", "summary": "never reached" }
+    ]
+  }
+}

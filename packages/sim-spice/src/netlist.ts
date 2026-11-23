@@ -241,6 +241,22 @@ export function buildSpiceCircuit(q: Query, opts: SpiceNetlistOptions = {}): Bui
   const senseMap = new Map<string, string[]>();
   const modelKeys = new Set<string>();
   const zeners = new Map<string, number>();
+  const customModels = new Map<string, string>();
+  const partsWithModels = q.parts as { spiceModels?: () => ReadonlyMap<string, string> };
+  if (typeof partsWithModels.spiceModels === 'function') {
+    for (const [k, v] of partsWithModels.spiceModels()) {
+      customModels.set(k, v);
+      customModels.set(k.toUpperCase(), v);
+    }
+  }
+  if (opts.models) {
+    const entries = opts.models instanceof Map ? opts.models.entries() : Object.entries(opts.models);
+    for (const [k, v] of entries) {
+      customModels.set(k, v);
+      customModels.set(k.toUpperCase(), v);
+    }
+  }
+  const usedCustomModels = new Map<string, string>();
   const lines: string[] = [];
   const acSourceId = opts.analysis?.kind === 'ac' ? pickAcSourceId(q, comps) : undefined;
   let hasReactiveOrOsc = false;
@@ -426,13 +442,60 @@ export function buildSpiceCircuit(q: Query, opts: SpiceNetlistOptions = {}): Bui
         lines.push(`${makeUniqueName(comp.ref, usedRefsLower, 'X')} ${out1} ${inm1} ${inp1} ${gnd} ${inp2} ${inm2} ${out2} ${vcc} LM358`);
         break;
       }
-      default:
-        throw new CadError('invalid', `${comp.ref}: unsupported SPICE model "${ref}" (part ${part.id})`);
+      default: {
+        const customText = customModels.get(ref) ?? customModels.get(ref.toUpperCase());
+        if (!customText) {
+          throw new CadError('invalid', `${comp.ref}: unsupported SPICE model "${ref}" (part ${part.id})`);
+        }
+        const subcktMatch = customText.match(/^\s*\.subckt\s+(\S+)([^\r\n]*)/im);
+        if (subcktMatch) {
+          const subcktName = subcktMatch[1]!;
+          const headerRest = subcktMatch[2] ?? '';
+          const nodes = part.pins.map(p => pinNode(comp, p));
+          const paramPairs: string[] = [];
+          const headerAdditions: string[] = [];
+          for (const [propKey, propDef] of Object.entries(part.props ?? {})) {
+            if (propDef.type !== 'number' || propKey === 'footprint') continue;
+            if (!new RegExp(`\\b${propKey}\\b`, 'i').test(customText)) continue;
+            const val = parseNumberProp(comp, part, propKey);
+            paramPairs.push(`${propKey}=${val}`);
+            if (!new RegExp(`\\b${propKey}\\s*=`, 'i').test(headerRest)) {
+              const defVal = propDef.default !== undefined ? (parseSI(propDef.default) ?? val) : val;
+              headerAdditions.push(`${propKey}=${defVal}`);
+            }
+          }
+          const normalizedText = headerAdditions.length
+            ? customText.replace(/^\s*\.subckt\s+\S+[^\r\n]*/im, line => `${line} ${headerAdditions.join(' ')}`)
+            : customText.trim();
+          usedCustomModels.set(subcktName.toUpperCase(), normalizedText);
+          const xName = makeUniqueName(comp.ref, usedRefsLower, 'X');
+          lines.push([xName, ...nodes, subcktName, ...paramPairs].join(' '));
+          break;
+        }
+        const modelMatch = customText.match(/^\s*\.model\s+(\S+)\s+([A-Za-z]+)/im);
+        if (modelMatch) {
+          const modelName = modelMatch[1]!;
+          const modelType = modelMatch[2]!.toUpperCase();
+          const devPrefix = modelType.startsWith('D')
+            ? 'D'
+            : modelType === 'NPN' || modelType === 'PNP'
+              ? 'Q'
+              : modelType === 'NMOS' || modelType === 'PMOS'
+                ? 'M'
+                : 'R';
+          const nodes = part.pins.map(p => pinNode(comp, p));
+          usedCustomModels.set(modelName.toUpperCase(), customText.trim());
+          lines.push([makeUniqueName(comp.ref, usedRefsLower, devPrefix), ...nodes, modelName].join(' '));
+          break;
+        }
+        throw new CadError('invalid', `${comp.ref}: custom SPICE model "${ref}" must define a .subckt or .model`);
+      }
     }
   }
 
   const title = (opts.title ?? 'CadLLM circuit').replace(/[\r\n]+/g, ' ').trim() || 'CadLLM circuit';
-  const modelBlocks = emitModels(modelKeys, zeners);
+  const customBlocks = [...usedCustomModels.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
+  const modelBlocks = [...emitModels(modelKeys, zeners), ...customBlocks];
   const sections = [title, ...lines, ...modelBlocks];
   if (opts.analysis) sections.push(formatAnalysisCard(opts.analysis, hasReactiveOrOsc));
   sections.push('.end');

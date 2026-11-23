@@ -1,0 +1,18 @@
+{
+  "id": "therm_test",
+  "name": "Test Thermistor",
+  "summary": "temperature-dependent test resistor",
+  "category": "sensor",
+  "refPrefix": "R",
+  "pins": [
+    { "id": "1", "name": "1", "type": "passive" },
+    { "id": "2", "name": "2", "type": "passive" }
+  ],
+  "props": {
+    "temp": { "type": "number", "unit": "C", "default": "25", "description": "Temperature in C" }
+  },
+  "valueProp": "temp",
+  "sim": [{ "kind": "spice", "ref": "GOOD_THERM" }],
+  "footprints": ["THT-axial"],
+  "views": { "sch": "resistor", "bb": "axial" }
+}

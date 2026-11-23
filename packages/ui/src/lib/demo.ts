@@ -4,7 +4,126 @@ import { VIEWS, type ViewId } from '@cadllm/views';
 import { buildPartResolver } from './parts.ts';
 import { autoPlacePcbWithFallback, checkPcbDrc, routePcbWithFallback } from './pcbFallback.ts';
 import { parsePressIntervals } from './sim.ts';
-import type { ChangedNotification, RpcApi, StateResponse } from './types.ts';
+import type {
+  ChangedNotification,
+  PluginPanelPayload,
+  PluginStatusItem,
+  RegistryPluginItem,
+  RpcApi,
+  StateResponse,
+} from './types.ts';
+
+const DEMO_SENSOR_PANEL_HTML = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 12px; font-size: 12px; color: #1b1f24; background: #fafbfc; }
+    h3 { margin: 0 0 8px; font-size: 13px; }
+    .row { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+    input { width: 72px; padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 4px; }
+    button { padding: 5px 10px; border: 1px solid #2563eb; background: #2563eb; color: #fff; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    button.sec { background: #fff; color: #1b1f24; border-color: #cbd5e1; }
+    pre { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px; white-space: pre-wrap; font-size: 11px; max-height: 160px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h3>Sensor Divider Calculator</h3>
+  <div class="row">
+    <label>Vin (V) <input id="vin" type="number" value="5" step="0.1" /></label>
+    <label>Vout (V) <input id="vout" type="number" value="3.3" step="0.1" /></label>
+  </div>
+  <div class="row">
+    <button id="btn-read" class="sec" type="button">Read Circuit</button>
+    <button id="btn-edit" type="button">Propose Divider Edit</button>
+  </div>
+  <pre id="out">Click "Read Circuit" or "Propose Divider Edit".</pre>
+  <script>
+    const out = document.getElementById('out');
+    document.getElementById('btn-read').addEventListener('click', async () => {
+      try {
+        const text = await window.cadllm.read({ detail: 1 });
+        out.textContent = text;
+      } catch (err) {
+        out.textContent = 'Error: ' + err.message;
+      }
+    });
+    document.getElementById('btn-edit').addEventListener('click', async () => {
+      const vin = Number(document.getElementById('vin').value) || 5;
+      const vout = Number(document.getElementById('vout').value) || 3.3;
+      const r1 = '5.1k';
+      const r2 = vout >= vin ? '10k' : Math.round((10 * vout) / Math.max(0.1, vin - vout) * 10) / 10 + 'k';
+      const cnl = 'R10 res ' + r1 + '; R11 res ' + r2 + '; DIV_IN: R10.1; DIV_OUT: R10.2 R11.1; GND: R11.2';
+      try {
+        const res = await window.cadllm.requestEdit(cnl);
+        out.textContent = 'Applied: ' + res;
+      } catch (err) {
+        out.textContent = 'Edit not applied: ' + err.message;
+      }
+    });
+  </script>
+</body>
+</html>`;
+
+const DEMO_SENSOR_MANIFEST: PluginStatusItem = {
+  id: 'org.example.sensors',
+  name: 'Example Sensor Pack',
+  version: '1.0.0',
+  summary: 'LDR photoresistor, NTC 10k thermistor, voltage divider solver, and Sensor Calculator panel',
+  publisher: 'example',
+  license: 'MIT',
+  state: 'loaded',
+  requestedPermissions: ['project:read', 'project:write'],
+  grantedPermissions: ['project:read', 'project:write'],
+  contributions: ['models', 'panels', 'parts', 'tools'],
+  contributes: {
+    parts: 'parts',
+    models: [{ id: 'LDR', kind: 'spice', file: 'models/ldr.cir' }],
+    tools: [{ name: 'calc_divider', summary: 'solve resistor divider for Vin/Vout (E12/E24)' }],
+    panels: [{ id: 'sensors', title: 'Sensor Calculator', main: 'panel/index.html' }],
+  },
+};
+
+const DEMO_REGISTRY_INDEX: RegistryPluginItem[] = [
+  {
+    id: 'org.example.sensors',
+    name: 'Example Sensor Pack',
+    summary: 'LDR photoresistor, NTC 10k thermistor, voltage divider solver, and Sensor Calculator panel',
+    publisher: 'example',
+    license: 'MIT',
+    versions: [
+      {
+        version: '1.0.0',
+        engine: '^1.0.0',
+        url: 'packages/org.example.sensors-1.0.0.cnlplugin',
+        sha256: 'demo-sha256',
+        size: 4096,
+        permissions: ['project:read', 'project:write'],
+        contributes: ['models', 'panels', 'parts', 'tools'],
+        signature: 'demo-sig',
+      },
+    ],
+  },
+  {
+    id: 'org.example.telemetry',
+    name: 'Telemetry Probes',
+    summary: 'Inspect circuit power rails and forward summary metrics to a remote endpoint',
+    publisher: 'example',
+    license: 'MIT',
+    versions: [
+      {
+        version: '0.4.0',
+        engine: '^1.0.0',
+        url: 'packages/org.example.telemetry-0.4.0.cnlplugin',
+        sha256: 'demo-sha256-2',
+        size: 2048,
+        permissions: ['project:read', 'net:api.example.com'],
+        contributes: ['tools', 'checks'],
+        signature: 'demo-sig-2',
+      },
+    ],
+  },
+];
 
 export const DEMO_PARTS: PartDef[] = [
   {
@@ -249,6 +368,17 @@ export function createDemoBackend(): DemoBackend {
   const resolver = buildPartResolver(DEMO_PARTS);
   const log: { rev: number; source: string; summary: string }[] = [];
   const listeners = new Set<(n: ChangedNotification) => void>();
+  const installedPlugins = new Map<string, PluginStatusItem>([
+    [
+      DEMO_SENSOR_MANIFEST.id,
+      {
+        ...DEMO_SENSOR_MANIFEST,
+        requestedPermissions: [...DEMO_SENSOR_MANIFEST.requestedPermissions],
+        grantedPermissions: [...DEMO_SENSOR_MANIFEST.grantedPermissions],
+        contributions: [...DEMO_SENSOR_MANIFEST.contributions],
+      },
+    ],
+  ]);
 
   const blinkDoc = new Doc(resolver);
   const buttonDoc = new Doc(resolver);
@@ -402,7 +532,7 @@ export function createDemoBackend(): DemoBackend {
     return place;
   };
 
-  const applyDemoCnl = (cnl: string, source: 'user' | 'ai' = 'user'): TxInfo => {
+  const applyDemoCnl = (cnl: string, source: 'user' | 'ai' | 'plugin' = 'user'): TxInfo => {
     const lines = cnl
       .split(/[\r\n;]+/)
       .map(l => l.trim())
@@ -635,12 +765,147 @@ export function createDemoBackend(): DemoBackend {
           return `ok rev=${info.rev} ${summarize(info)}`.trim() as T;
         }
         case 'find': {
+          if (typeof params.id === 'string' && params.id.trim()) {
+            const ids = params.id.split(/[\s,]+/).filter(Boolean);
+            return ids.map(id => {
+              const p = resolver.get(id);
+              if (!p) throw new Error(`unknown part ${id} · search with find`);
+              return `${p.id}  ${p.name} · ${p.summary} · ref ${p.refPrefix}\npins ${p.pins.map(pin => `${pin.id}:${pin.name}`).join(' · ')}`;
+            }).join('\n\n') as T;
+          }
           const q = String(params.q ?? '').trim().toLowerCase();
           const matches = DEMO_PARTS.filter(p =>
             !q || p.id.includes(q) || p.name.toLowerCase().includes(q) || p.summary.toLowerCase().includes(q) || p.category.includes(q),
           );
           if (!matches.length) return `no parts match "${q}" · categories: board io logic passive source` as T;
           return matches.map(p => `${p.id}  ${p.summary}  ${p.pins.length}p${p.footprints?.length ? ` ${p.footprints.join('/')}` : ''}`).join('\n') as T;
+        }
+        case 'ext': {
+          const op = String(params.op ?? 'list');
+          if (op === 'list') {
+            const tools: string[] = [];
+            for (const plugin of installedPlugins.values()) {
+              if (plugin.state !== 'loaded') continue;
+              for (const tool of plugin.contributes.tools ?? []) {
+                tools.push(`${tool.name}  ${tool.summary}  (${plugin.id}@${plugin.version})`);
+              }
+            }
+            return (tools.length ? tools.join('\n') : 'no plugin tools installed') as T;
+          }
+          if (op === 'call' && params.name === 'calc_divider' && installedPlugins.has('org.example.sensors')) {
+            const args = (params.args && typeof params.args === 'object' ? params.args : {}) as Record<string, unknown>;
+            const vin = Number(args.vin ?? 5);
+            const vout = Number(args.vout ?? 3.3);
+            if (!Number.isFinite(vin) || !Number.isFinite(vout) || vout <= 0 || vout >= vin) {
+              throw new Error('calc_divider requires 0 < vout < vin');
+            }
+            const r1 = 5100;
+            const r2 = Math.round((r1 * vout) / (vin - vout));
+            const actual = (vin * r2) / (r1 + r2);
+            const errPct = ((actual - vout) / vout) * 100;
+            return `R1=5.1k R2=${r2} Vout=${actual.toFixed(3)}V err=${errPct.toFixed(2)}%` as T;
+          }
+          throw new Error(`unknown plugin tool ${String(params.name ?? '')}`);
+        }
+        case 'help': {
+          return [
+            'Sim commands: dc · tran 10m · ac dec 10 10 100k · logic in=SW1 out=Y · run 4s probes=D13 · test',
+            'Plugin tools: ext op=list · ext op=call name=<tool>',
+          ].join('\n') as T;
+        }
+        case 'plugins.list': {
+          return [...installedPlugins.values()].sort((a, b) => a.id.localeCompare(b.id)) as T;
+        }
+        case 'plugins.index': {
+          return DEMO_REGISTRY_INDEX.map(entry => ({
+            ...entry,
+            versions: entry.versions.map(v => ({ ...v, permissions: [...v.permissions], contributes: [...v.contributes] })),
+          })) as T;
+        }
+        case 'plugins.install': {
+          const id = String(params.id ?? '').trim();
+          const entry = DEMO_REGISTRY_INDEX.find(p => p.id === id);
+          if (!entry) throw new Error(`unknown plugin ${id}`);
+          const ver = entry.versions[entry.versions.length - 1]!;
+          const item: PluginStatusItem = id === DEMO_SENSOR_MANIFEST.id
+            ? {
+                ...DEMO_SENSOR_MANIFEST,
+                requestedPermissions: [...DEMO_SENSOR_MANIFEST.requestedPermissions],
+                grantedPermissions: [],
+                contributions: [...DEMO_SENSOR_MANIFEST.contributions],
+              }
+            : {
+                id: entry.id,
+                name: entry.name,
+                version: ver.version,
+                summary: entry.summary,
+                publisher: entry.publisher,
+                license: entry.license ?? 'MIT',
+                state: 'loaded',
+                requestedPermissions: [...ver.permissions],
+                grantedPermissions: [],
+                contributions: [...ver.contributes],
+                contributes: {
+                  ...(ver.contributes.includes('tools') ? { tools: [{ name: 'probe_rails', summary: 'inspect power rail voltages' }] } : {}),
+                },
+              };
+          installedPlugins.set(id, item);
+          return item as T;
+        }
+        case 'plugins.grant': {
+          const id = String(params.id ?? '').trim();
+          const cur = installedPlugins.get(id);
+          if (!cur) throw new Error(`plugin ${id} is not installed`);
+          const perms = Array.isArray(params.permissions) ? params.permissions.filter((x): x is string => typeof x === 'string') : [];
+          const next = new Set(cur.grantedPermissions);
+          for (const p of perms) {
+            if (!cur.requestedPermissions.includes(p)) throw new Error(`permission "${p}" is not requested by plugin ${id}`);
+            next.add(p);
+          }
+          cur.grantedPermissions = [...next].sort();
+          return cur as T;
+        }
+        case 'plugins.revoke': {
+          const id = String(params.id ?? '').trim();
+          const cur = installedPlugins.get(id);
+          if (!cur) throw new Error(`plugin ${id} is not installed`);
+          const toRevoke = Array.isArray(params.permissions) ? new Set(params.permissions) : null;
+          cur.grantedPermissions = toRevoke
+            ? cur.grantedPermissions.filter(p => !toRevoke.has(p)).sort()
+            : [];
+          return cur as T;
+        }
+        case 'plugins.remove': {
+          const id = String(params.id ?? '').trim();
+          const removed = installedPlugins.delete(id);
+          return { id, removed } as T;
+        }
+        case 'plugins.panel': {
+          const id = String(params.id ?? '').trim();
+          const panelId = String(params.panel ?? '').trim();
+          const cur = installedPlugins.get(id);
+          if (!cur) throw new Error(`plugin ${id} is not installed`);
+          const panelDef = cur.contributes.panels?.find(p => p.id === panelId);
+          if (!panelDef) throw new Error(`unknown panel "${panelId}" for plugin "${id}"`);
+          const payload: PluginPanelPayload = {
+            id,
+            panel: panelDef.id,
+            title: panelDef.title,
+            html: DEMO_SENSOR_PANEL_HTML,
+          };
+          return payload as T;
+        }
+        case 'plugins.panelEdit': {
+          const id = String(params.id ?? '').trim();
+          const cnl = String(params.cnl ?? '').trim();
+          const cur = installedPlugins.get(id);
+          if (!cur) throw new Error(`plugin ${id} is not installed`);
+          if (!cur.grantedPermissions.includes('project:write')) {
+            throw new Error(`permission denied: plugin "${id}" does not have project:write`);
+          }
+          if (!cnl) throw new Error('plugins.panelEdit requires cnl');
+          const info = applyDemoCnl(cnl, 'plugin');
+          return `ok rev=${info.rev} ${summarize(info)}`.trim() as T;
         }
         case 'check': {
           const basic = basicChecks(d.read);

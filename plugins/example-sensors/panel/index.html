@@ -1,0 +1,246 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Sensor calculator</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+    }
+    body {
+      margin: 0;
+      padding: 12px;
+      background: #16181d;
+      color: #e6edf3;
+    }
+    h2 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .card {
+      border: 1px solid #2d333b;
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 10px;
+      background: #1c2026;
+    }
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+    }
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: #9da7b3;
+    }
+    input, select, button {
+      background: #0d1117;
+      color: #e6edf3;
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+    input[type="number"] {
+      width: 72px;
+    }
+    button {
+      cursor: pointer;
+      background: #238636;
+      border-color: #2ea043;
+      font-weight: 500;
+    }
+    button.secondary {
+      background: #21262d;
+      border-color: #30363d;
+    }
+    .out {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      color: #7ee787;
+      white-space: pre-wrap;
+    }
+    .err {
+      color: #f85149;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Sensor Resistance &amp; Divider</h2>
+    <div class="row">
+      <label>Sensor
+        <select id="sensor">
+          <option value="ldr">LDR (lux)</option>
+          <option value="ntc10k">NTC 10k (°C)</option>
+        </select>
+      </label>
+      <label id="valLabel">Lux <input id="sensorVal" type="number" value="100" step="any" /></label>
+      <label>Rpull (Ω) <input id="rPull" type="number" value="10000" step="any" /></label>
+      <label>Vin (V) <input id="sVin" type="number" value="5" step="any" /></label>
+    </div>
+    <div id="sensorOut" class="out"></div>
+  </div>
+
+  <div class="card">
+    <h2>E12 / E24 Divider Solver</h2>
+    <div class="row">
+      <label>Vin <input id="dVin" type="number" value="5" step="any" /></label>
+      <label>Vout <input id="dVout" type="number" value="3.3" step="any" /></label>
+      <label>Series
+        <select id="dSeries">
+          <option value="E24" selected>E24</option>
+          <option value="E12">E12</option>
+        </select>
+      </label>
+      <button id="proposeBtn" type="button">Propose CNL Edit</button>
+    </div>
+    <div id="divOut" class="out"></div>
+  </div>
+
+  <div class="card">
+    <h2>Active Circuit</h2>
+    <div class="row">
+      <button id="readBtn" class="secondary" type="button">Read Project</button>
+    </div>
+    <div id="projOut" class="out"></div>
+  </div>
+
+  <script>
+    (function () {
+      var E12 = [10, 12, 15, 18, 22, 27, 33, 39, 47, 56, 68, 82];
+      var E24 = [10, 11, 12, 13, 15, 16, 18, 20, 22, 24, 27, 30, 33, 36, 39, 43, 47, 51, 56, 62, 68, 75, 82, 91];
+
+      function fmtOhms(r) {
+        if (r >= 1e6) return Number((r / 1e6).toPrecision(3)) + 'M';
+        if (r >= 1e3) return Number((r / 1e3).toPrecision(3)) + 'k';
+        return String(Number(r.toPrecision(3)));
+      }
+
+      function updateSensor() {
+        var kind = document.getElementById('sensor').value;
+        var v = Number(document.getElementById('sensorVal').value);
+        var rPull = Number(document.getElementById('rPull').value);
+        var vin = Number(document.getElementById('sVin').value);
+        document.getElementById('valLabel').firstChild.textContent = kind === 'ldr' ? 'Lux ' : 'Temp (°C) ';
+        var rSensor = kind === 'ldr'
+          ? 10000 * Math.pow(Math.max(v, 0.1) / 10, -0.7)
+          : 10000 * Math.exp(3950 * (1 / (v + 273.15) - 1 / 298.15));
+        var vout = (vin * rSensor) / (rPull + rSensor);
+        document.getElementById('sensorOut').textContent =
+          'Rsensor = ' + fmtOhms(rSensor) + 'Ω  ·  Vout (pull-up ' + fmtOhms(rPull) + ') = ' + vout.toFixed(3) + ' V';
+      }
+
+      var lastPair = null;
+      function updateDivider() {
+        var vin = Number(document.getElementById('dVin').value);
+        var vout = Number(document.getElementById('dVout').value);
+        var series = document.getElementById('dSeries').value;
+        var out = document.getElementById('divOut');
+        if (!(vin > 0 && vout > 0 && vout < vin)) {
+          out.className = 'out err';
+          out.textContent = 'Need 0 < Vout < Vin';
+          lastPair = null;
+          return;
+        }
+        var m = series === 'E12' ? E12 : E24;
+        var vals = [];
+        for (var e = 2; e <= 4; e++) {
+          for (var i = 0; i < m.length; i++) vals.push(m[i] * Math.pow(10, e));
+        }
+        vals.push(100000);
+        var best = null;
+        for (var i = 0; i < vals.length; i++) {
+          for (var j = 0; j < vals.length; j++) {
+            var r1 = vals[i], r2 = vals[j];
+            var actual = (vin * r2) / (r1 + r2);
+            var score = Math.abs(actual - vout) / vout;
+            if (!best || score < best.score) best = { r1: r1, r2: r2, actual: actual, score: score };
+          }
+        }
+        lastPair = best;
+        var errPct = ((best.actual - vout) / vout) * 100;
+        out.className = 'out';
+        out.textContent = 'R1=' + fmtOhms(best.r1) + '  R2=' + fmtOhms(best.r2) + '  Vout=' + best.actual.toFixed(3) + 'V  err=' + errPct.toFixed(2) + '%';
+      }
+
+      function cadllmApi() {
+        if (window.cadllm) return window.cadllm;
+        var reqId = 1;
+        return {
+          read: function (opts) {
+            return new Promise(function (resolve, reject) {
+              var id = 'fallback_' + (reqId++);
+              function onMsg(ev) {
+                if (ev.data && ev.data.type === 'cadllm:response' && ev.data.id === id) {
+                  window.removeEventListener('message', onMsg);
+                  if (ev.data.ok === false || ev.data.error) reject(new Error(ev.data.error || 'denied'));
+                  else resolve(ev.data.result);
+                }
+              }
+              window.addEventListener('message', onMsg);
+              window.parent.postMessage({ type: 'cadllm:project.read', id: id, opts: opts || { detail: 1 } }, '*');
+            });
+          },
+          requestEdit: function (cnl) {
+            return new Promise(function (resolve, reject) {
+              var id = 'fallback_' + (reqId++);
+              function onMsg(ev) {
+                if (ev.data && ev.data.type === 'cadllm:response' && ev.data.id === id) {
+                  window.removeEventListener('message', onMsg);
+                  if (ev.data.ok === false || ev.data.error) reject(new Error(ev.data.error || 'denied'));
+                  else resolve(ev.data.result);
+                }
+              }
+              window.addEventListener('message', onMsg);
+              window.parent.postMessage({ type: 'cadllm:project.edit', id: id, cnl: cnl }, '*');
+            });
+          }
+        };
+      }
+
+      document.getElementById('readBtn').addEventListener('click', function () {
+        var el = document.getElementById('projOut');
+        cadllmApi().read({ detail: 1 }).then(function (txt) {
+          el.className = 'out';
+          el.textContent = txt;
+        }, function (err) {
+          el.className = 'out err';
+          el.textContent = err.message;
+        });
+      });
+
+      document.getElementById('proposeBtn').addEventListener('click', function () {
+        if (!lastPair) return;
+        var el = document.getElementById('projOut');
+        var vin = Number(document.getElementById('dVin').value);
+        var cnl = 'V1 dc_supply ' + vin + '; R1 res ' + fmtOhms(lastPair.r1) + '; R2 res ' + fmtOhms(lastPair.r2) + '\nVCC: V1.+ R1.1; OUT: R1.2 R2.1; GND: V1.- R2.2';
+        cadllmApi().requestEdit(cnl).then(function (res) {
+          el.className = 'out';
+          el.textContent = res;
+        }, function (err) {
+          el.className = 'out err';
+          el.textContent = err.message;
+        });
+      });
+
+      ['sensor', 'sensorVal', 'rPull', 'sVin'].forEach(function (id) {
+        document.getElementById(id).addEventListener('input', updateSensor);
+      });
+      ['dVin', 'dVout', 'dSeries'].forEach(function (id) {
+        document.getElementById(id).addEventListener('input', updateDivider);
+      });
+      updateSensor();
+      updateDivider();
+    })();
+  </script>
+</body>
+</html>

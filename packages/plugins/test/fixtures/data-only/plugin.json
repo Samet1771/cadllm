@@ -1,0 +1,14 @@
+{
+  "id": "org.test.data",
+  "name": "Data Only Pack",
+  "version": "1.0.0",
+  "summary": "Data-only parts and SPICE models",
+  "engine": "^1.0.0",
+  "license": "MIT",
+  "contributes": {
+    "parts": "parts",
+    "models": [
+      { "id": "DATA_M", "kind": "spice", "spice": ".model DATA_M D(IS=1e-14)" }
+    ]
+  }
+}

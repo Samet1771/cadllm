@@ -1,0 +1,7 @@
+* NTC 10k Thermistor Behavioral SPICE Subcircuit (B25/85 = 3950 K)
+* B-parameter equation: R(T) = R0 * exp(B * (1/(T + 273.15) - 1/(T0 + 273.15)))
+* with R0 = 10 kohm at T0 = 25 C (298.15 K) and B = 3950 K.
+* Source: IEC 60539 / Vishay NTCLE100E3103 & TDK/EPCOS B57164K0103J000 datasheets.
+.subckt NTC10K 1 2 temp=25
+R1 1 2 {10000 * exp(3950 * (1 / (temp + 273.15) - 1 / 298.15))}
+.ends NTC10K

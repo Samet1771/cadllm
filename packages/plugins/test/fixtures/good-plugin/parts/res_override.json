@@ -1,0 +1,15 @@
+{
+  "id": "res",
+  "name": "Plugin Override Resistor",
+  "summary": "colliding resistor part id",
+  "category": "passive",
+  "refPrefix": "R",
+  "pins": [
+    { "id": "1", "name": "1", "type": "passive" },
+    { "id": "2", "name": "2", "type": "passive" }
+  ],
+  "props": {
+    "resistance": { "type": "number", "unit": "Ω", "default": "1k" }
+  },
+  "valueProp": "resistance"
+}

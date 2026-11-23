@@ -1,0 +1,41 @@
+{
+  "keys": {
+    "cadllm-examples": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAD3v9ph248CK0x1dj7UERLAqq1BXd0hxo0BztpB/eK/I=\n-----END PUBLIC KEY-----\n",
+    "example": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAD3v9ph248CK0x1dj7UERLAqq1BXd0hxo0BztpB/eK/I=\n-----END PUBLIC KEY-----\n",
+    "publishers": {
+      "cadllm-examples": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAD3v9ph248CK0x1dj7UERLAqq1BXd0hxo0BztpB/eK/I=\n-----END PUBLIC KEY-----\n",
+      "example": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAD3v9ph248CK0x1dj7UERLAqq1BXd0hxo0BztpB/eK/I=\n-----END PUBLIC KEY-----\n"
+    },
+    "signature": "3etKhDNXLro4cxEq36FoFmsp1HB2zOYMXgF9cpcph2juI2VhcZk3hyRnRa8/RD66Tu8AJhwsSdqApyR88dq3Aw=="
+  },
+  "plugins": [
+    {
+      "id": "org.cadllm.example-sensors",
+      "license": "MIT",
+      "name": "Example Sensor Pack",
+      "publisher": "cadllm-examples",
+      "summary": "LDR photoresistor, NTC 10k thermistor, voltage divider solver, LED resistor check, and sensor calculator panel",
+      "versions": [
+        {
+          "contributes": [
+            "checks",
+            "models",
+            "panels",
+            "parts",
+            "tools"
+          ],
+          "engine": "^1.0.0",
+          "permissions": [
+            "project:read"
+          ],
+          "sha256": "11bf74bb8483bfa959f2c2ecf1907482b33592431ad6322dbd50d39f192a3bd7",
+          "signature": "H58jIQFyOCH4sBij+H8ZUq+nmtfzqvN85t/JyiExAYEH9ZC+QEex/BXMGc6i2LhpOZQyXwCI3hRZ2dLLmsM0CA==",
+          "size": 9258,
+          "url": "packages/org.cadllm.example-sensors-1.0.0.cnlplugin",
+          "version": "1.0.0"
+        }
+      ]
+    }
+  ],
+  "version": 1
+}

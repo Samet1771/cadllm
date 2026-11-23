@@ -1,0 +1,13 @@
+{
+  "name": "cadllm-plugin-example-sensors",
+  "version": "1.0.0",
+  "description": "Example CadLLM sensor plugin: LDR photoresistor, NTC 10k thermistor, voltage divider solver, LED resistor check, and sensor calculator panel",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@cadllm/plugin-api": "*"
+  }
+}

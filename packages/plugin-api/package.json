@@ -1,0 +1,13 @@
+{
+  "name": "@cadllm/plugin-api",
+  "version": "1.0.0-alpha.0",
+  "description": "Public plugin API, manifest schema, and stdio RPC helpers for CadLLM plugins",
+  "license": "GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}

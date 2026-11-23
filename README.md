@@ -4,7 +4,7 @@
 
 AI agents drive it over MCP with very few tokens: build circuits, simulate them and test them, headless. Humans get a breadboard / schematic / PCB UI on the same engine.
 
-**Status:** M3 (analog/SPICE, Arduino/avr8js, mixed-signal co-sim, PCB layout/autorouting/DRC/Gerber/KiCad, live UI), pre-alpha. See [docs/FOUNDATION.md](docs/FOUNDATION.md) for the design.
+**Status:** M4 (analog/SPICE, Arduino/avr8js, mixed-signal co-sim, PCB layout/autorouting/DRC/Gerber/KiCad, live UI, sandboxed plugins & registry), pre-alpha. See [docs/FOUNDATION.md](docs/FOUNDATION.md) for the design.
 
 ## Development
 
@@ -57,6 +57,17 @@ To generate the fabrication zip plus per-layer and top/bottom PNG previews for u
 ```sh
 node packages/export/scripts/fab-preview.ts examples/led-pcb.cnl fab-out/led-pcb
 ```
+
+### Plugins
+
+List and install signed plugins from the local dev index via the CLI (or the Web UI's **Plugins** manager):
+
+```sh
+node packages/cli/src/main.ts plugin search
+node packages/cli/src/main.ts plugin install org.cadllm.example-sensors --yes-grant
+```
+
+Installed plugin tools are exposed over MCP via `ext` (`ext op=list`, `ext op=call name=calc_divider args={"vin":5,"vout":3.3}`), while AI clients cannot install plugins or grant permissions. Plugins that use only `@cadllm/plugin-api` may use any license (see [LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md)); see [plugins/example-sensors/](plugins/example-sensors/) as a template.
 
 ## License
 

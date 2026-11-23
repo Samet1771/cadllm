@@ -9,6 +9,10 @@ interface TopBarProps {
   status: ConnectionStatus;
   themePref: ThemePreference;
   isDemo: boolean;
+  pluginCount?: number;
+  availablePanels?: { pluginId: string; pluginName: string; panelId: string; title: string }[];
+  onOpenPlugins?: () => void;
+  onOpenPanel?: (pluginId: string, panelId: string, title: string) => void;
   onThemePrefChange: (pref: ThemePreference) => void;
   onSelectProject: (name: string) => void;
   onNewProject: (name?: string) => void;
@@ -37,6 +41,10 @@ export function TopBar({
   status,
   themePref,
   isDemo,
+  pluginCount = 0,
+  availablePanels = [],
+  onOpenPlugins,
+  onOpenPanel,
   onThemePrefChange,
   onSelectProject,
   onNewProject,
@@ -125,6 +133,24 @@ export function TopBar({
         <button type="button" className="btn btn-accent" onClick={onAutoLayout} title="Auto-place current view">
           Auto Layout
         </button>
+        {onOpenPlugins && (
+          <button type="button" className="btn" onClick={onOpenPlugins} title="Manage installed plugins and registry">
+            Plugins{pluginCount > 0 ? ` (${pluginCount})` : ''}
+          </button>
+        )}
+        {availablePanels.length > 0 && onOpenPanel && (
+          <button
+            type="button"
+            className="btn btn-accent"
+            onClick={() => {
+              const first = availablePanels[0]!;
+              onOpenPanel(first.pluginId, first.panelId, first.title);
+            }}
+            title={`Open plugin panel: ${availablePanels[0]!.title}`}
+          >
+            Panel: {availablePanels[0]!.title}
+          </button>
+        )}
         {isDemo && onSimulateAiEdit && (
           <button type="button" className="btn" onClick={onSimulateAiEdit} title="Trigger a sample AI edit to preview live co-editing">
             Simulate AI Edit

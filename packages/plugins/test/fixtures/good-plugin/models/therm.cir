@@ -1,0 +1,3 @@
+.subckt GOOD_THERM 1 2 temp=25
+R1 1 2 {1000 * (1 + (temp - 25) * 0.1)}
+.ends GOOD_THERM

@@ -1,0 +1,24 @@
+{
+  "id": "ldr",
+  "name": "LDR Photoresistor",
+  "summary": "cadmium-sulfide photoresistor (10k at 10 lux, gamma 0.7)",
+  "category": "sensor",
+  "refPrefix": "R",
+  "pins": [
+    { "id": "1", "name": "1", "type": "passive" },
+    { "id": "2", "name": "2", "type": "passive" }
+  ],
+  "props": {
+    "lux": {
+      "type": "number",
+      "unit": "lx",
+      "default": "100",
+      "description": "Illuminance in lux"
+    }
+  },
+  "valueProp": "lux",
+  "sim": [{ "kind": "spice", "ref": "LDR" }],
+  "footprints": ["THT-axial"],
+  "views": { "sch": "resistor", "bb": "axial" },
+  "keywords": ["ldr", "photoresistor", "photocell", "light", "sensor", "cds", "lux"]
+}

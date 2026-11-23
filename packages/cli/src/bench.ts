@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
+import { resolve } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { errorText } from '@cadllm/core';
 import { Engine } from '@cadllm/engine';
 import { builtinPartsDir, loadLibrary } from '@cadllm/library';
 import { createServer } from '@cadllm/mcp';
+import { PluginHost } from '@cadllm/plugins';
 import { compileSketch } from '@cadllm/sim-mcu';
 
 /** Rough token estimate (≈4 chars/token for English and code). Good enough to catch regressions. */
@@ -14,6 +16,7 @@ interface Step { tool: string; args: Record<string, unknown> }
 interface StepOut { tool: string; text: string; imgTokens: number }
 interface Task {
   name: string;
+  needsExamplePlugin?: boolean;
   steps: Step[];
   pass: (outputs: StepOut[]) => boolean;
   skipIf?: () => Promise<string | undefined>;
@@ -58,7 +61,7 @@ export const TASKS: Task[] = [
     name: 'counter: 2-bit counter, verify sequence',
     steps: [
       { tool: 'project', args: { op: 'new', name: 'ctr' } },
-      { tool: 'part', args: { id: '74hc74' } },
+      { tool: 'find', args: { id: '74hc74' } },
       { tool: 'edit', args: { cnl: `BAT1 battery 5; U1 74hc74; SW1 button; R1 res 10k; SW2 button; R2 res 10k
 VCC: BAT1.+ U1.VCC U1.1PRE U1.2PRE SW1.1 R2.2; GND: BAT1.- U1.GND R1.2 SW2.2
 CLK: SW1.2 R1.1 U1.1CLK; RST: U1.1CLR U1.2CLR R2.1 SW2.1
@@ -103,6 +106,19 @@ Q0: U1.1Q; Q0N: U1.1QN U1.1D U1.2CLK; Q1: U1.2Q; Q1N: U1.2QN U1.2D` } },
       return last.includes('PASS') && !last.includes('FAIL');
     },
   },
+  {
+    name: 'plugin: discover and call a plugin tool',
+    needsExamplePlugin: true,
+    steps: [
+      { tool: 'ext', args: { op: 'list' } },
+      { tool: 'ext', args: { op: 'call', name: 'calc_divider', args: { vin: 5, vout: 3.3 } } },
+    ],
+    pass: outs => {
+      const listOut = outs[0]?.text ?? '';
+      const callOut = outs[1]?.text ?? '';
+      return listOut.includes('calc_divider') && callOut.includes('R1=') && callOut.includes('R2=') && callOut.includes('Vout=');
+    },
+  },
 ];
 
 export interface BenchResult {
@@ -118,7 +134,12 @@ export async function runBench(): Promise<BenchResult> {
   const tasks: BenchResult['tasks'] = [];
 
   for (const task of TASKS) {
-    const engine = new Engine({ library });
+    let host: PluginHost | undefined;
+    if (task.needsExamplePlugin) {
+      host = new PluginHost();
+      host.load(resolve(import.meta.dirname, '../../../plugins/example-sensors'));
+    }
+    const engine = new Engine({ library, ...(host ? { plugins: host } : {}) });
     const [a, b] = InMemoryTransport.createLinkedPair();
     await createServer(engine).connect(a);
     const client = new Client({ name: 'bench', version: '0' });
@@ -155,6 +176,7 @@ export async function runBench(): Promise<BenchResult> {
       tasks.push({ name: task.name, calls: task.steps.length, inTokens, outTokens, imgTokens, ok: ok && task.pass(outputs), transcript });
     } finally {
       await client.close();
+      if (host) await host.dispose();
     }
   }
   return { schemaTokens, tools: toolsCount, tasks };

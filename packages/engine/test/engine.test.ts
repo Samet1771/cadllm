@@ -2,8 +2,9 @@
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { errorText } from '@cadllm/core';
+import { errorText, type PartDef, type Query } from '@cadllm/core';
 import { builtinPartsDir, loadLibrary } from '@cadllm/library';
+import { PluginHost, type PluginCheckIssue, type PluginRpcContext, type PluginToolInfo } from '@cadllm/plugins';
 import { describe, expect, it } from 'vitest';
 import { Engine, Workspace, type WorkspaceEvent } from '../src/index.ts';
 
@@ -199,7 +200,7 @@ describe('views', () => {
     expect(err(() => e.layout({ view: 'nope' }))).toBe('unknown view nope · views: sch bb pcb');
   });
 
-  it('routes PCB layout, render, check, and export tools cleanly', () => {
+  it('routes PCB layout, render, check, and export tools cleanly', async () => {
     const e = engine();
     e.project({ op: 'open', path: 'examples/led-pcb.cnl' });
     expect(e.edit({ cnl: 'track VCC F 0.4 5,6 14,10' })).toMatch(/^ok rev=1 pcb: ~VCC/);
@@ -207,7 +208,7 @@ describe('views', () => {
     expect(e.layout({ view: 'pcb', op: 'route' })).toMatch(/^ok rev=\d+ routed /);
     expect(err(() => e.layout({ view: 'sch', op: 'route' }))).toMatch(/only supported for view=pcb/);
     expect(e.renderSvg({ view: 'pcb' })).toMatch(/^<svg [^>]*data-view="pcb"/);
-    expect(e.check()).toMatch(/^led-pcb rev=2 /);
+    expect(await e.check()).toMatch(/^led-pcb rev=2 /);
 
     const outDir = mkdtempSync(join(tmpdir(), 'cadllm-exp-'));
     const gbrDir = join(outDir, 'gbr');
@@ -233,12 +234,12 @@ describe('views', () => {
     expect(readFileSync(svgPath, 'utf8')).toContain('<svg ');
   });
 
-  it('reports breadboard shorts in check and in the edit tail', () => {
+  it('reports breadboard shorts in check and in the edit tail', async () => {
     const e = engine();
     e.edit({ cnl: LED });
     const tail = e.edit({ cnl: 'R1 @bb:A10-A14; D1 @bb:B10-B12' });
     expect(tail).toMatch(/^ok rev=2 ~D1 ~R1 · 1 err/);
-    const errs = e.check().split('\n').filter(l => l.startsWith('err '));
+    const errs = (await e.check()).split('\n').filter(l => l.startsWith('err '));
     expect(errs).toHaveLength(1);
     expect(errs[0]).toMatch(/LA/);
     expect(errs[0]).toMatch(/VCC/);
@@ -250,8 +251,8 @@ describe('library tools', () => {
   it('finds parts and describes them', () => {
     const e = engine();
     expect(e.find({ q: 'nand' }).split('\n')[0]).toMatch(/^74hc00 /);
-    expect(e.part({ id: 'led' })).toBe('led  LED · light-emitting diode · ref D\npins 1:A(anode/+) · 2:K(cathode/-)\nprops color*=red (red|green|blue|yellow|white)  (* = positional value)\nsim spice:LED');
-    expect(err(() => e.part({ id: 'nand' }))).toMatch(/^unknown part nand · did you mean 74hc00/);
+    expect(e.find({ id: 'led' })).toBe('led  LED · light-emitting diode · ref D\npins 1:A(anode/+) · 2:K(cathode/-)\nprops color*=red (red|green|blue|yellow|white)  (* = positional value)\nsim spice:LED');
+    expect(err(() => e.find({ id: 'nand' }))).toMatch(/^unknown part nand · did you mean 74hc00/);
   });
 
   it('help covers every topic', () => {
@@ -269,5 +270,159 @@ describe('library tools', () => {
       e.edit({ cnl: lines.join('\n') });
       expect(await e.sim({ run }), block).not.toMatch(/FAIL|error/);
     }
+  });
+});
+
+class MockPluginHost extends PluginHost {
+  partsCalls = 0;
+  private extraParts: PartDef[] = [];
+
+  addPart(part: PartDef): void {
+    this.extraParts.push(part);
+    this.bumpRevision();
+  }
+
+  override tools(): PluginToolInfo[] {
+    return [
+      {
+        name: 'calc_divider',
+        summary: 'solve resistor divider',
+        pluginId: 'org.example.sensors',
+        version: '1.0.0',
+      },
+    ];
+  }
+
+  override async callTool(name: string, args: Record<string, unknown> = {}, ctx?: PluginRpcContext): Promise<string> {
+    if (name === 'calc_divider') {
+      return `R1=10k R2=20k Vin=${String(args.vin ?? 5)}`;
+    }
+    if (name === 'add_probe_res' && ctx?.editProject) {
+      return ctx.editProject('R99 res 4k7');
+    }
+    return super.callTool(name, args, ctx);
+  }
+
+  override async runChecks(q: Query): Promise<PluginCheckIssue[]> {
+    const hasLed = q.components().some(c => c.part === 'led');
+    const hasRes = q.components().some(c => c.part === 'res');
+    if (hasLed && !hasRes) {
+      return [
+        {
+          level: 'warn',
+          code: 'led_no_resistor',
+          message: 'D1 has no series resistor',
+          at: ['D1'],
+          pluginId: 'org.example.sensors',
+        },
+      ];
+    }
+    return [];
+  }
+
+  override parts(): PartDef[] {
+    this.partsCalls += 1;
+    return [
+      {
+        id: 'ldr',
+        name: 'LDR Photoresistor',
+        summary: 'light-dependent resistor',
+        category: 'sensor',
+        refPrefix: 'R',
+        pins: [
+          { id: '1', name: '1', type: 'passive' },
+          { id: '2', name: '2', type: 'passive' },
+        ],
+        props: {
+          lux: { type: 'number', unit: 'lx', default: '100' },
+        },
+        valueProp: 'lux',
+        sim: [{ kind: 'spice', ref: 'LDR' }],
+        footprints: ['THT-axial'],
+        views: { sch: 'resistor', bb: 'axial' },
+      },
+      ...this.extraParts,
+    ];
+  }
+
+  override spiceModels(): Map<string, string> {
+    return new Map([
+      [
+        'LDR',
+        ['.subckt LDR 1 2 lux=100', 'R1 1 2 {10000 * (100 / lux)}', '.ends LDR'].join('\n'),
+      ],
+    ]);
+  }
+}
+
+describe('plugins integration (find, ext, check, spiceModels)', () => {
+  it('merges plugin parts, lists/calls ext tools, runs plugin checks, and simulates plugin SPICE models', async () => {
+    const plugins = new MockPluginHost();
+    const e = new Engine({ library, plugins, root: repo });
+
+    // find q & id include plugin part
+    expect(e.find({ q: 'ldr' })).toContain('ldr  light-dependent resistor');
+    expect(e.find({ id: 'ldr' })).toContain('props lux*=100lx (number)');
+
+    // ext list & call
+    expect(await e.ext({ op: 'list' })).toBe('calc_divider  solve resistor divider  (org.example.sensors@1.0.0)');
+    expect(await e.ext({ op: 'call', name: 'calc_divider', args: { vin: 12 } })).toBe('R1=10k R2=20k Vin=12');
+
+    // plugin edit is attributed as source: 'plugin'
+    expect(await e.ext({ op: 'call', name: 'add_probe_res' })).toMatch(/^ok rev=1 \+R99/);
+    expect(e.history({ op: 'log', n: 1 })).toContain('rev 1 plugin: +R99');
+
+    // check includes plugin check tagged with [org.example.sensors]
+    e.project({ op: 'new', name: 'bare-led' });
+    e.edit({ cnl: 'BAT1 battery 5; D1 led red\nVCC: BAT1.+ D1.A; GND: BAT1.- D1.K' });
+    const chk = await e.check();
+    expect(chk).toContain('warn [org.example.sensors] D1 has no series resistor');
+
+    // dc simulation uses plugin SPICE model (.subckt LDR with lux parameter)
+    e.project({ op: 'new', name: 'ldr-div' });
+    e.edit({ cnl: 'V1 dc_supply 5; R1 res 10k; R2 ldr 100\nVCC: V1.+ R1.1; OUT: R1.2 R2.1; GND: V1.- R2.2' });
+    expect(await e.sim({ run: 'dc; expect V(OUT) 2.4..2.6' })).toContain('PASS V(OUT)');
+    e.edit({ cnl: '~R2 lux=400' });
+    expect(await e.sim({ run: 'dc; expect V(OUT) 0.95..1.05' })).toContain('PASS V(OUT)');
+  });
+
+  it('caches the merged library across repeated get/search/all calls and invalidates on revision change', () => {
+    const plugins = new MockPluginHost();
+    const e = new Engine({ library, plugins, root: repo });
+    expect(plugins.partsCalls).toBe(0);
+
+    // First lookup builds the cache once
+    expect(e.library.get('ldr')?.id).toBe('ldr');
+    expect(plugins.partsCalls).toBe(1);
+
+    // Repeated get/all/search calls hit the cache without rebuilding
+    for (let i = 0; i < 50; i++) {
+      expect(e.library.get('res')?.id).toBe('res');
+      expect(e.library.get('ldr')?.id).toBe('ldr');
+    }
+    expect(e.library.all().some(p => p.id === 'ldr')).toBe(true);
+    expect(e.library.search('ldr')[0]?.id).toBe('ldr');
+    expect(plugins.partsCalls).toBe(1);
+
+    // Loading a new plugin part bumps revision and invalidates the cache
+    plugins.addPart({
+      id: 'ntc_10k',
+      name: 'NTC 10k Thermistor',
+      summary: 'negative temperature coefficient thermistor',
+      category: 'sensor',
+      refPrefix: 'R',
+      pins: [
+        { id: '1', name: '1', type: 'passive' },
+        { id: '2', name: '2', type: 'passive' },
+      ],
+    });
+    expect(e.library.get('ntc_10k')?.id).toBe('ntc_10k');
+    expect(plugins.partsCalls).toBe(2);
+
+    // Subsequent calls hit the updated cache without rebuilding
+    for (let i = 0; i < 20; i++) {
+      expect(e.library.get('ntc_10k')?.id).toBe('ntc_10k');
+    }
+    expect(plugins.partsCalls).toBe(2);
   });
 });

@@ -49,12 +49,12 @@ export const TOOLS = {
     },
   },
   find: {
-    description: 'Search the part library.',
-    inputSchema: { q: z.string(), limit: z.number().int().optional() },
-  },
-  part: {
-    description: 'Pins, props and sim models of parts.',
-    inputSchema: { id: z.string().describe('one or more ids: "led,74hc00"') },
+    description: 'Search parts (q) or describe pins/props by id ("led,74hc00").',
+    inputSchema: {
+      q: z.string().optional(),
+      id: z.string().optional(),
+      limit: z.number().int().optional(),
+    },
   },
   check: {
     description: 'Electrical rule check: errors and warnings.',
@@ -100,6 +100,14 @@ export const TOOLS = {
     description: 'Grammar and examples. Start here. Topics: edit sim tests project views examples parts.',
     inputSchema: { topic: z.string().optional() },
   },
+  ext: {
+    description: 'Plugin tools: list or call.',
+    inputSchema: {
+      op: z.enum(['list', 'call']),
+      name: z.string().optional(),
+      args: z.record(z.string(), z.unknown()).optional(),
+    },
+  },
 } as const;
 
 function renderPng(engine: Engine, a: { view: 'sch' | 'bb' | 'pcb'; select?: string; width?: number }): Content[] {
@@ -120,7 +128,6 @@ export function createServer(engine: Engine, version = '0.0.0'): McpServer {
   server.registerTool('read', t.read, a => reply(() => engine.read(a)));
   server.registerTool('edit', t.edit, a => reply(() => engine.edit(a)));
   server.registerTool('find', t.find, a => reply(() => engine.find(a)));
-  server.registerTool('part', t.part, a => reply(() => engine.part(a)));
   server.registerTool('check', t.check, () => reply(() => engine.check()));
   server.registerTool('sim', t.sim, a => reply(() => engine.sim(a)));
   server.registerTool('layout', t.layout, a => reply(() => engine.layout(a)));
@@ -128,5 +135,6 @@ export function createServer(engine: Engine, version = '0.0.0'): McpServer {
   server.registerTool('export', t.export, a => reply(() => engine.export(a)));
   server.registerTool('history', t.history, a => reply(() => engine.history(a)));
   server.registerTool('help', t.help, a => reply(() => engine.help(a)));
+  server.registerTool('ext', t.ext, a => reply(() => engine.ext(a)));
   return server;
 }

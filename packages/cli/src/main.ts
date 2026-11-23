@@ -6,12 +6,14 @@ import { builtinPartsDir, loadLibrary } from '@cadllm/library';
 import { serveStdio } from '@cadllm/mcp';
 import { findServe, main as serveMain, proxyStdio } from '@cadllm/server';
 import { formatBench, runBench } from './bench.ts';
+import { runPluginCli } from './plugin.ts';
 
 const USAGE = `usage:
   cadllm mcp [--standalone]      MCP on stdio; attaches to a running serve unless --standalone
   cadllm serve [file.cnl] [--port 5170]  web UI + live MCP at /mcp
   cadllm test <file.cnl> [name]  run the file's [tests] (name may use *)
-  cadllm bench [-v]              MCP token benchmark (M0 goal tasks + M1 layout/render)`;
+  cadllm bench [-v]              MCP token benchmark (M0 goal tasks + M1 layout/render)
+  cadllm plugin <cmd> [args...]  search|install|list|remove|grant|pack|sign|keygen`;
 
 async function main(argv: string[]): Promise<number> {
   const [cmd, ...rest] = argv;
@@ -28,6 +30,8 @@ async function main(argv: string[]): Promise<number> {
     }
     case 'serve':
       return serveMain(rest);
+    case 'plugin':
+      return runPluginCli(rest);
     case 'test': {
       const [file, pattern] = rest;
       if (!file) break;

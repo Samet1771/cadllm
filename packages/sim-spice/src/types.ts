@@ -11,6 +11,8 @@ export interface SpiceNetlistOptions {
   title?: string;
   analysis?: SpiceAnalysis;
   probes?: string[];
+  /** Custom SPICE `.subckt` / `.model` definitions keyed by `SimModelRef.ref` (e.g. from plugins). */
+  models?: ReadonlyMap<string, string> | Record<string, string>;
 }
 
 export interface TranOptions {
@@ -18,6 +20,7 @@ export interface TranOptions {
   step?: number;
   uic?: boolean;
   probes?: string[];
+  models?: ReadonlyMap<string, string> | Record<string, string>;
 }
 
 export interface AcOptions {
@@ -26,10 +29,12 @@ export interface AcOptions {
   start: number;
   stop: number;
   probes?: string[];
+  models?: ReadonlyMap<string, string> | Record<string, string>;
 }
 
 export interface OpSpiceOptions {
   probes?: string[];
+  models?: ReadonlyMap<string, string> | Record<string, string>;
 }
 
 export interface SpiceResult {
