@@ -5,3 +5,5 @@ fab-out/
 *.log
 .serena/
 .DS_Store
+*.pem
+*.key

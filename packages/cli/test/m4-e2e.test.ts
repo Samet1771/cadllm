@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-CadLLM-plugin-exception
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { parseSI } from '@cadllm/core';
@@ -34,22 +34,24 @@ describe('M4 end-to-end: registry -> install -> grant -> PluginHost -> MCP -> si
     if (prevStateDir === undefined) delete process.env.CADLLM_STATE_DIR;
     else process.env.CADLLM_STATE_DIR = prevStateDir;
     while (tempDirs.length) {
-      rmSync(tempDirs.pop()!, { recursive: true, force: true });
+      rmSync(tempDirs.pop()!, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 
-  it('installs org.cadllm.example-sensors from dev index and drives find, ext, sim dc, check, and uninstall over MCP', async () => {
+  it('installs org.cadllm.example-sensors from signed registry index (trusting only registry/registry.pub) and drives find, ext, sim dc, check, and uninstall over MCP', async () => {
     const stateDir = mkdtempSync(join(tmpdir(), 'cadllm-m4-e2e-'));
     tempDirs.push(stateDir);
     process.env.CADLLM_STATE_DIR = stateDir;
 
-    // 1. Load dev index and verify Ed25519 signatures
-    const index = await loadIndex();
-    expect(verifyIndex(index)).toBe(true);
+    const registryPub = readFileSync(resolve(import.meta.dirname, '../../../registry/registry.pub'), 'utf8');
+
+    // 1. Load real signed index and verify Ed25519 signatures trusting only registry/registry.pub
+    const index = await loadIndex(undefined, { stateDir });
+    expect(verifyIndex(index, registryPub, { stateDir })).toBe(true);
 
     // 2. Resolve and install org.cadllm.example-sensors with NO implicit grants
     const resolved = resolvePlugin(index, 'org.cadllm.example-sensors');
-    const installed = await install(resolved, { index });
+    const installed = await install(resolved, { index, stateDir, registryPublicKey: registryPub });
     expect(installed.id).toBe('org.cadllm.example-sensors');
     expect(installed.version).toBe('1.0.0');
     expect(installed.dir.startsWith(join(stateDir, 'plugins', 'org.cadllm.example-sensors'))).toBe(true);

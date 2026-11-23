@@ -71,5 +71,7 @@ Installed plugin tools are exposed over MCP via `ext` (`ext op=list`, `ext op=ca
 
 ## License
 
+The plugin exception is a draft pending legal review.
+
 GPL-3.0-or-later with the [CadLLM plugin exception](LICENSE-EXCEPTION.md). Plugins that use only the public plugin API may use any license.
 Contributions are accepted under the [DCO](https://developercertificate.org/) (`git commit -s`).

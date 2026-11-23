@@ -1191,6 +1191,21 @@ export function revoke(
   return setGrants(id, remaining, opts);
 }
 
+async function rmDirWithRetry(path: string): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      rmSync(path, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if ((code !== 'EPERM' && code !== 'EBUSY' && code !== 'ENOTEMPTY') || attempt >= 20) {
+        throw err;
+      }
+      await new Promise<void>(r => setTimeout(r, 50));
+    }
+  }
+}
+
 export async function uninstall(
   id: string,
   opts: { version?: string; stateDir?: string } = {},
@@ -1205,10 +1220,10 @@ export async function uninstall(
   if (opts.version) {
     const verDir = join(pluginDir, opts.version);
     if (!existsSync(verDir)) return false;
-    rmSync(verDir, { recursive: true, force: true });
+    await rmDirWithRetry(verDir);
     const remaining = readdirSync(pluginDir).filter(name => !name.startsWith('.'));
     if (remaining.length === 0) {
-      rmSync(pluginDir, { recursive: true, force: true });
+      await rmDirWithRetry(pluginDir);
       const grantsPath = join(stateDir, 'grants.json');
       if (existsSync(grantsPath)) {
         const map = readGrantsMap(stateDir);
@@ -1218,7 +1233,7 @@ export async function uninstall(
     return true;
   }
 
-  rmSync(pluginDir, { recursive: true, force: true });
+  await rmDirWithRetry(pluginDir);
   const grantsPath = join(stateDir, 'grants.json');
   if (existsSync(grantsPath)) {
     const map = readGrantsMap(stateDir);

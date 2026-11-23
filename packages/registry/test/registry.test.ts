@@ -116,18 +116,31 @@ describe('@cadllm/registry', () => {
     }
   });
 
-  it('verifies the committed repository dev registry in registry/', async () => {
+  it('verifies the committed repository registry in registry/ using only public keys', async () => {
     const repoRegDir = resolve(import.meta.dirname, '../../../registry');
+    const stateDir = makeTemp('cadllm-repo-reg-state-');
+    process.env.CADLLM_STATE_DIR = stateDir;
+
     expect(existsSync(join(repoRegDir, 'registry.pub'))).toBe(true);
-    expect(existsSync(join(repoRegDir, 'registry.dev.pem'))).toBe(true);
     expect(existsSync(join(repoRegDir, 'index.json'))).toBe(true);
     expect(existsSync(join(repoRegDir, 'index.sig'))).toBe(true);
     expect(existsSync(join(repoRegDir, 'publishers', 'cadllm-examples.pub'))).toBe(true);
-    expect(existsSync(join(repoRegDir, 'publishers', 'cadllm-examples.dev.pem'))).toBe(true);
     expect(existsSync(join(repoRegDir, 'README.md'))).toBe(true);
 
-    const index = await loadIndex(repoRegDir);
-    expect(verifyIndex(index)).toBe(true);
+    // No private keys may exist anywhere in the committed registry directory
+    expect(existsSync(join(repoRegDir, 'registry.dev.pem'))).toBe(false);
+    expect(existsSync(join(repoRegDir, 'registry.pem'))).toBe(false);
+    expect(existsSync(join(repoRegDir, 'registry.key'))).toBe(false);
+    expect(existsSync(join(repoRegDir, 'publishers', 'cadllm-examples.dev.pem'))).toBe(false);
+    expect(existsSync(join(repoRegDir, 'publishers', 'cadllm-examples.pem'))).toBe(false);
+    expect(existsSync(join(repoRegDir, 'publishers', 'cadllm-examples.key'))).toBe(false);
+
+    const regPub = readFileSync(join(repoRegDir, 'registry.pub'), 'utf8');
+    const pubPub = readFileSync(join(repoRegDir, 'publishers', 'cadllm-examples.pub'), 'utf8').trim();
+    const index = await loadIndex(repoRegDir, { stateDir });
+    expect(verifyIndex(index, undefined, { stateDir })).toBe(true);
+    expect(verifyIndex(index, regPub)).toBe(true);
+    expect(index.keys.publishers['cadllm-examples']?.trim()).toBe(pubPub);
   });
 
   it('produces a deterministic .cnlplugin sha256 across calls, mtimes, and excludes node_modules + dotfiles', () => {
